@@ -118,5 +118,5 @@ Windows／PowerShellを使用している。必要に応じて現在のターミ
 - 課題原本は `docs/フロントエンド課題_割り勘.pdf` に配置済み。要件はPDFを正本とする。
 - 初期画面は `http://localhost:3000` でHTTP 200を確認済み。
 - `npm run lint` と `npm run build` は成功済み。
-- Gitは `main` ブランチでローカル初期化済み。GitHubリモートは未設定。
+- Gitは `main` ブランチを使用し、非公開GitHubリポジトリ `risatsumo/warikan-app` の `origin/main` へ接続・push済み。
 - 割り勘機能は未実装。
