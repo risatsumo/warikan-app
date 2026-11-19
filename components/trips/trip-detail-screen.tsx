@@ -10,6 +10,7 @@ import type { AppData, Payment, Trip } from "@/types/domain";
 
 import { MemberList } from "./member-list";
 import { PaymentList } from "./payment-list";
+import { SettlementSummary } from "./settlement-summary";
 
 interface TripDetailScreenProps {
   readonly tripId: string;
@@ -223,6 +224,8 @@ function TripDetails({
           </span>
         </div>
       </header>
+
+      <SettlementSummary trip={trip} />
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(18rem,0.78fr)_minmax(0,1.22fr)]">
         <MemberList members={trip.members} onAddMember={onAddMember} />
