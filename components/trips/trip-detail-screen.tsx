@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { loadAppData } from "@/lib/storage";
-import { findTripById } from "@/lib/trips";
-import type { Trip } from "@/types/domain";
+import { loadAppData, saveAppData } from "@/lib/storage";
+import { addMemberToTrip, findTripById } from "@/lib/trips";
+import type { AppData, Trip } from "@/types/domain";
 
 import { MemberList } from "./member-list";
 import { PaymentList } from "./payment-list";
@@ -16,7 +16,11 @@ interface TripDetailScreenProps {
 
 type TripLoadState =
   | { readonly status: "loading" }
-  | { readonly status: "ready"; readonly trip: Trip }
+  | {
+      readonly status: "ready";
+      readonly appData: AppData;
+      readonly trip: Trip;
+    }
   | { readonly status: "not-found" }
   | { readonly status: "error"; readonly message: string };
 
@@ -36,12 +40,39 @@ export function TripDetailScreen({ tripId }: TripDetailScreenProps) {
 
       const trip = findTripById(result.data, tripId);
       setLoadState(
-        trip === null ? { status: "not-found" } : { status: "ready", trip },
+        trip === null
+          ? { status: "not-found" }
+          : { status: "ready", appData: result.data, trip },
       );
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
   }, [tripId]);
+
+  function handleAddMember(memberName: string): string | null {
+    if (loadState.status !== "ready") {
+      return "旅行データの読み込みが終わってから、もう一度お試しください。";
+    }
+
+    const result = addMemberToTrip(loadState.appData, tripId, memberName);
+
+    if (!result.ok) {
+      return result.error;
+    }
+
+    const saveResult = saveAppData(window.localStorage, result.data);
+
+    if (!saveResult.ok) {
+      return saveResult.error.message;
+    }
+
+    setLoadState({
+      status: "ready",
+      appData: result.data,
+      trip: result.trip,
+    });
+    return null;
+  }
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-50 text-slate-900">
@@ -77,7 +108,10 @@ export function TripDetailScreen({ tripId }: TripDetailScreenProps) {
           />
         )}
         {loadState.status === "ready" && (
-          <TripDetails trip={loadState.trip} />
+          <TripDetails
+            trip={loadState.trip}
+            onAddMember={handleAddMember}
+          />
         )}
       </main>
     </div>
@@ -133,7 +167,12 @@ function MessageState({
   );
 }
 
-function TripDetails({ trip }: { readonly trip: Trip }) {
+interface TripDetailsProps {
+  readonly trip: Trip;
+  readonly onAddMember: (memberName: string) => string | null;
+}
+
+function TripDetails({ trip, onAddMember }: TripDetailsProps) {
   return (
     <div className="mt-6 space-y-6">
       <header className="rounded-3xl border border-slate-200 bg-white/90 p-6 shadow-[0_18px_50px_-28px_rgba(15,23,42,0.35)] backdrop-blur sm:p-8">
@@ -154,7 +193,7 @@ function TripDetails({ trip }: { readonly trip: Trip }) {
       </header>
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(18rem,0.78fr)_minmax(0,1.22fr)]">
-        <MemberList members={trip.members} />
+        <MemberList members={trip.members} onAddMember={onAddMember} />
         <PaymentList members={trip.members} payments={trip.payments} />
       </div>
     </div>

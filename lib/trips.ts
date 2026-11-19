@@ -1,4 +1,4 @@
-import type { AppData, Trip } from "../types/domain";
+import type { AppData, Member, Trip } from "../types/domain";
 
 const MINIMUM_MEMBER_COUNT = 2;
 
@@ -16,6 +16,15 @@ export interface CreateTripValidationErrors {
 export type CreateTripResult =
   | { readonly ok: true; readonly trip: Trip }
   | { readonly ok: false; readonly errors: CreateTripValidationErrors };
+
+export type AddMemberResult =
+  | {
+      readonly ok: true;
+      readonly data: AppData;
+      readonly trip: Trip;
+      readonly member: Member;
+    }
+  | { readonly ok: false; readonly error: string };
 
 type CreateId = () => string;
 
@@ -109,4 +118,51 @@ export function removeAllTrips(appData: AppData): AppData {
 
 export function findTripById(appData: AppData, tripId: string): Trip | null {
   return appData.trips.find((trip) => trip.id === tripId) ?? null;
+}
+
+export function addMemberToTrip(
+  appData: AppData,
+  tripId: string,
+  memberName: string,
+  createId: CreateId = () => crypto.randomUUID(),
+): AddMemberResult {
+  const trip = findTripById(appData, tripId);
+
+  if (trip === null) {
+    return { ok: false, error: "旅行が見つかりません。" };
+  }
+
+  const normalizedName = memberName.trim();
+
+  if (normalizedName === "") {
+    return { ok: false, error: "メンバー名を入力してください。" };
+  }
+
+  if (trip.members.some((member) => member.name === normalizedName)) {
+    return {
+      ok: false,
+      error: "同じ名前のメンバーは登録できません。",
+    };
+  }
+
+  const member: Member = {
+    id: createId(),
+    name: normalizedName,
+  };
+  const updatedTrip: Trip = {
+    ...trip,
+    members: [...trip.members, member],
+  };
+
+  return {
+    ok: true,
+    data: {
+      ...appData,
+      trips: appData.trips.map((currentTrip) =>
+        currentTrip.id === tripId ? updatedTrip : currentTrip,
+      ),
+    },
+    trip: updatedTrip,
+    member,
+  };
 }

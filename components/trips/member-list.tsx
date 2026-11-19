@@ -1,10 +1,13 @@
 import type { Member } from "@/types/domain";
 
+import { MemberForm } from "./member-form";
+
 interface MemberListProps {
   readonly members: readonly Member[];
+  readonly onAddMember: (memberName: string) => string | null;
 }
 
-export function MemberList({ members }: MemberListProps) {
+export function MemberList({ members, onAddMember }: MemberListProps) {
   return (
     <section
       aria-labelledby="member-list-title"
@@ -26,6 +29,8 @@ export function MemberList({ members }: MemberListProps) {
           {members.length}人
         </span>
       </div>
+
+      <MemberForm onAddMember={onAddMember} />
 
       <ol className="mt-6 space-y-3">
         {members.map((member, index) => (
