@@ -6,6 +6,7 @@ interface PaymentListProps {
   readonly members: readonly Member[];
   readonly payments: readonly Payment[];
   readonly onAddPayment: (payment: Payment) => string | null;
+  readonly onRequestDeletePayment: (payment: Payment) => void;
 }
 
 const yenFormatter = new Intl.NumberFormat("ja-JP");
@@ -14,6 +15,7 @@ export function PaymentList({
   members,
   payments,
   onAddPayment,
+  onRequestDeletePayment,
 }: PaymentListProps) {
   const memberNameById = new Map(
     members.map((member) => [member.id, member.name]),
@@ -83,6 +85,16 @@ export function PaymentList({
                     .map((memberId) => memberNameById.get(memberId))
                     .join("、")}
                 </p>
+                <div className="mt-3 flex justify-end border-t border-slate-200 pt-2">
+                  <button
+                    type="button"
+                    aria-label={`「${payment.description}」を削除`}
+                    className="min-h-11 rounded-xl px-3 text-sm font-bold text-red-600 transition hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
+                    onClick={() => onRequestDeletePayment(payment)}
+                  >
+                    削除
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

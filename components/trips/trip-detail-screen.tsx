@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { addPaymentToTrip } from "@/lib/payments";
+import { addPaymentToTrip, removePaymentFromTrip } from "@/lib/payments";
 import { loadAppData, saveAppData } from "@/lib/storage";
 import { addMemberToTrip, findTripById } from "@/lib/trips";
 import type { AppData, Payment, Trip } from "@/types/domain";
 
+import { ConfirmDialog } from "../ui/confirm-dialog";
 import { MemberList } from "./member-list";
 import { PaymentList } from "./payment-list";
 import { SettlementSummary } from "./settlement-summary";
@@ -30,6 +31,10 @@ export function TripDetailScreen({ tripId }: TripDetailScreenProps) {
   const [loadState, setLoadState] = useState<TripLoadState>({
     status: "loading",
   });
+  const [paymentToDelete, setPaymentToDelete] = useState<Payment | null>(null);
+  const [deletePaymentError, setDeletePaymentError] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -101,6 +106,48 @@ export function TripDetailScreen({ tripId }: TripDetailScreenProps) {
     return null;
   }
 
+  function handleRequestDeletePayment(payment: Payment) {
+    setDeletePaymentError(null);
+    setPaymentToDelete(payment);
+  }
+
+  function handleCancelDeletePayment() {
+    setDeletePaymentError(null);
+    setPaymentToDelete(null);
+  }
+
+  function handleConfirmDeletePayment() {
+    if (loadState.status !== "ready" || paymentToDelete === null) {
+      return;
+    }
+
+    const result = removePaymentFromTrip(
+      loadState.appData,
+      tripId,
+      paymentToDelete.id,
+    );
+
+    if (!result.ok) {
+      setDeletePaymentError(result.error);
+      return;
+    }
+
+    const saveResult = saveAppData(window.localStorage, result.data);
+
+    if (!saveResult.ok) {
+      setDeletePaymentError(saveResult.error.message);
+      return;
+    }
+
+    setLoadState({
+      status: "ready",
+      appData: result.data,
+      trip: result.trip,
+    });
+    setDeletePaymentError(null);
+    setPaymentToDelete(null);
+  }
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-50 text-slate-900">
       <div
@@ -139,9 +186,24 @@ export function TripDetailScreen({ tripId }: TripDetailScreenProps) {
             trip={loadState.trip}
             onAddMember={handleAddMember}
             onAddPayment={handleAddPayment}
+            onRequestDeletePayment={handleRequestDeletePayment}
           />
         )}
       </main>
+
+      <ConfirmDialog
+        open={paymentToDelete !== null}
+        title={
+          paymentToDelete === null
+            ? "支払いを削除しますか？"
+            : `「${paymentToDelete.description}」を削除しますか？`
+        }
+        description="この支払いを削除すると、総費用と精算結果も再計算されます。この操作は元に戻せません。"
+        confirmLabel="支払いを削除する"
+        error={deletePaymentError}
+        onCancel={handleCancelDeletePayment}
+        onConfirm={handleConfirmDeletePayment}
+      />
     </div>
   );
 }
@@ -199,12 +261,14 @@ interface TripDetailsProps {
   readonly trip: Trip;
   readonly onAddMember: (memberName: string) => string | null;
   readonly onAddPayment: (payment: Payment) => string | null;
+  readonly onRequestDeletePayment: (payment: Payment) => void;
 }
 
 function TripDetails({
   trip,
   onAddMember,
   onAddPayment,
+  onRequestDeletePayment,
 }: TripDetailsProps) {
   return (
     <div className="mt-6 space-y-6">
@@ -233,6 +297,7 @@ function TripDetails({
           members={trip.members}
           payments={trip.payments}
           onAddPayment={onAddPayment}
+          onRequestDeletePayment={onRequestDeletePayment}
         />
       </div>
     </div>

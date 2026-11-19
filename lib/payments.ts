@@ -22,6 +22,10 @@ export type AddPaymentResult =
   | { readonly ok: true; readonly data: AppData; readonly trip: Trip }
   | { readonly ok: false; readonly error: string };
 
+export type RemovePaymentResult =
+  | { readonly ok: true; readonly data: AppData; readonly trip: Trip }
+  | { readonly ok: false; readonly error: string };
+
 type CreateId = () => string;
 
 export function createPayment(
@@ -108,6 +112,38 @@ export function addPaymentToTrip(
   const updatedTrip: Trip = {
     ...trip,
     payments: [...trip.payments, payment],
+  };
+
+  return {
+    ok: true,
+    data: {
+      ...appData,
+      trips: appData.trips.map((currentTrip) =>
+        currentTrip.id === tripId ? updatedTrip : currentTrip,
+      ),
+    },
+    trip: updatedTrip,
+  };
+}
+
+export function removePaymentFromTrip(
+  appData: AppData,
+  tripId: string,
+  paymentId: string,
+): RemovePaymentResult {
+  const trip = appData.trips.find((currentTrip) => currentTrip.id === tripId);
+
+  if (trip === undefined) {
+    return { ok: false, error: "旅行が見つかりません。" };
+  }
+
+  if (!trip.payments.some((payment) => payment.id === paymentId)) {
+    return { ok: false, error: "削除する支払いが見つかりません。" };
+  }
+
+  const updatedTrip: Trip = {
+    ...trip,
+    payments: trip.payments.filter((payment) => payment.id !== paymentId),
   };
 
   return {
