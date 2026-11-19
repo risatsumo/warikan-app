@@ -106,3 +106,7 @@ export function removeAllTrips(appData: AppData): AppData {
     trips: [],
   };
 }
+
+export function findTripById(appData: AppData, tripId: string): Trip | null {
+  return appData.trips.find((trip) => trip.id === tripId) ?? null;
+}

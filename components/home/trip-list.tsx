@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import type { Trip } from "@/types/domain";
 
 interface TripListProps {
@@ -70,7 +72,10 @@ export function TripList({
                 key={trip.id}
                 className="flex min-w-0 items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
               >
-                <div className="min-w-0">
+                <Link
+                  href={`/trips/${encodeURIComponent(trip.id)}`}
+                  className="group min-w-0 flex-1 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-600"
+                >
                   <p className="break-words font-bold text-slate-900">
                     {trip.name}
                   </p>
@@ -78,7 +83,11 @@ export function TripList({
                     <span>{trip.members.length}人</span>
                     <span>{trip.payments.length}件の支払い</span>
                   </div>
-                </div>
+                  <span className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-sky-700 transition group-hover:text-sky-900">
+                    旅行を開く
+                    <span aria-hidden="true">→</span>
+                  </span>
+                </Link>
                 <button
                   type="button"
                   aria-label={`「${trip.name}」を削除`}
