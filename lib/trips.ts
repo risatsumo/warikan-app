@@ -1,4 +1,4 @@
-import type { Trip } from "../types/domain";
+import type { AppData, Trip } from "../types/domain";
 
 const MINIMUM_MEMBER_COUNT = 2;
 
@@ -83,5 +83,26 @@ export function createTrip(
       })),
       payments: [],
     },
+  };
+}
+
+export function addTrip(appData: AppData, trip: Trip): AppData {
+  return {
+    ...appData,
+    trips: [trip, ...appData.trips],
+  };
+}
+
+export function removeTrip(appData: AppData, tripId: string): AppData {
+  return {
+    ...appData,
+    trips: appData.trips.filter((trip) => trip.id !== tripId),
+  };
+}
+
+export function removeAllTrips(appData: AppData): AppData {
+  return {
+    ...appData,
+    trips: [],
   };
 }

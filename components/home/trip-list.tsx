@@ -3,9 +3,16 @@ import type { Trip } from "@/types/domain";
 interface TripListProps {
   readonly isLoading: boolean;
   readonly trips: readonly Trip[];
+  readonly onRequestDeleteAll: () => void;
+  readonly onRequestDeleteTrip: (trip: Trip) => void;
 }
 
-export function TripList({ isLoading, trips }: TripListProps) {
+export function TripList({
+  isLoading,
+  trips,
+  onRequestDeleteAll,
+  onRequestDeleteTrip,
+}: TripListProps) {
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_18px_50px_-28px_rgba(15,23,42,0.35)] sm:p-7">
       <div className="flex items-start justify-between gap-4">
@@ -18,9 +25,18 @@ export function TripList({ isLoading, trips }: TripListProps) {
           </h2>
         </div>
         {!isLoading && trips.length > 0 && (
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
-            {trips.length}件
-          </span>
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600">
+              {trips.length}件
+            </span>
+            <button
+              type="button"
+              className="min-h-10 rounded-xl px-2 text-sm font-bold text-red-600 transition hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
+              onClick={onRequestDeleteAll}
+            >
+              すべて削除
+            </button>
+          </div>
         )}
       </div>
 
@@ -52,13 +68,25 @@ export function TripList({ isLoading, trips }: TripListProps) {
             {trips.map((trip) => (
               <li
                 key={trip.id}
-                className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                className="flex min-w-0 items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
               >
-                <p className="break-words font-bold text-slate-900">{trip.name}</p>
-                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500">
-                  <span>{trip.members.length}人</span>
-                  <span>{trip.payments.length}件の支払い</span>
+                <div className="min-w-0">
+                  <p className="break-words font-bold text-slate-900">
+                    {trip.name}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500">
+                    <span>{trip.members.length}人</span>
+                    <span>{trip.payments.length}件の支払い</span>
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  aria-label={`「${trip.name}」を削除`}
+                  className="min-h-10 shrink-0 rounded-xl px-2 text-sm font-bold text-red-600 transition hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
+                  onClick={() => onRequestDeleteTrip(trip)}
+                >
+                  削除
+                </button>
               </li>
             ))}
           </ul>

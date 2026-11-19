@@ -3,14 +3,24 @@
 import { useEffect, useState } from "react";
 
 import { loadAppData, saveAppData } from "@/lib/storage";
+import { addTrip, removeAllTrips, removeTrip } from "@/lib/trips";
 import type { AppData, Trip } from "@/types/domain";
 
+import { ConfirmDialog } from "../ui/confirm-dialog";
 import { TripForm } from "./trip-form";
 import { TripList } from "./trip-list";
+
+type PendingDeletion =
+  | { readonly type: "trip"; readonly trip: Trip }
+  | { readonly type: "all" }
+  | null;
 
 export function HomeScreen() {
   const [appData, setAppData] = useState<AppData | null>(null);
   const [storageError, setStorageError] = useState<string | null>(null);
+  const [pendingDeletion, setPendingDeletion] =
+    useState<PendingDeletion>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -30,10 +40,7 @@ export function HomeScreen() {
       return "旅行データの読み込みが終わってから、もう一度お試しください。";
     }
 
-    const nextData: AppData = {
-      ...appData,
-      trips: [trip, ...appData.trips],
-    };
+    const nextData = addTrip(appData, trip);
     const result = saveAppData(window.localStorage, nextData);
 
     if (!result.ok) {
@@ -44,6 +51,52 @@ export function HomeScreen() {
     setStorageError(null);
     return null;
   }
+
+  function handleRequestDeleteTrip(trip: Trip) {
+    setDeleteError(null);
+    setPendingDeletion({ type: "trip", trip });
+  }
+
+  function handleRequestDeleteAll() {
+    setDeleteError(null);
+    setPendingDeletion({ type: "all" });
+  }
+
+  function handleCancelDelete() {
+    setDeleteError(null);
+    setPendingDeletion(null);
+  }
+
+  function handleConfirmDelete() {
+    if (appData === null || pendingDeletion === null) {
+      return;
+    }
+
+    const nextData =
+      pendingDeletion.type === "trip"
+        ? removeTrip(appData, pendingDeletion.trip.id)
+        : removeAllTrips(appData);
+    const result = saveAppData(window.localStorage, nextData);
+
+    if (!result.ok) {
+      setDeleteError(result.error.message);
+      return;
+    }
+
+    setAppData(nextData);
+    setStorageError(null);
+    setDeleteError(null);
+    setPendingDeletion(null);
+  }
+
+  const dialogTitle =
+    pendingDeletion?.type === "trip"
+      ? `「${pendingDeletion.trip.name}」を削除しますか？`
+      : "すべての旅行データを削除しますか？";
+  const dialogDescription =
+    pendingDeletion?.type === "trip"
+      ? "この旅行のメンバーと支払いもすべて削除されます。この操作は元に戻せません。"
+      : `${appData?.trips.length ?? 0}件の旅行と、その中のメンバー・支払いをすべて削除します。この操作は元に戻せません。`;
 
   return (
     <div className="space-y-5">
@@ -62,8 +115,25 @@ export function HomeScreen() {
           disabled={appData === null}
           onCreateTrip={handleCreateTrip}
         />
-        <TripList isLoading={appData === null} trips={appData?.trips ?? []} />
+        <TripList
+          isLoading={appData === null}
+          trips={appData?.trips ?? []}
+          onRequestDeleteAll={handleRequestDeleteAll}
+          onRequestDeleteTrip={handleRequestDeleteTrip}
+        />
       </div>
+
+      <ConfirmDialog
+        open={pendingDeletion !== null}
+        title={dialogTitle}
+        description={dialogDescription}
+        confirmLabel={
+          pendingDeletion?.type === "all" ? "すべて削除する" : "削除する"
+        }
+        error={deleteError}
+        onCancel={handleCancelDelete}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }
