@@ -5,8 +5,12 @@ import { useEffect, useState } from "react";
 
 import { addPaymentToTrip, removePaymentFromTrip } from "@/lib/payments";
 import { loadAppData, saveAppData } from "@/lib/storage";
-import { addMemberToTrip, findTripById } from "@/lib/trips";
-import type { AppData, Payment, Trip } from "@/types/domain";
+import {
+  addMemberToTrip,
+  findTripById,
+  removeMemberFromTrip,
+} from "@/lib/trips";
+import type { AppData, Member, Payment, Trip } from "@/types/domain";
 
 import { ConfirmDialog } from "../ui/confirm-dialog";
 import { MemberList } from "./member-list";
@@ -33,6 +37,13 @@ export function TripDetailScreen({ tripId }: TripDetailScreenProps) {
   });
   const [paymentToDelete, setPaymentToDelete] = useState<Payment | null>(null);
   const [deletePaymentError, setDeletePaymentError] = useState<string | null>(
+    null,
+  );
+  const [memberToDelete, setMemberToDelete] = useState<Member | null>(null);
+  const [memberDeleteRequestError, setMemberDeleteRequestError] = useState<
+    string | null
+  >(null);
+  const [deleteMemberError, setDeleteMemberError] = useState<string | null>(
     null,
   );
 
@@ -78,6 +89,7 @@ export function TripDetailScreen({ tripId }: TripDetailScreenProps) {
       appData: result.data,
       trip: result.trip,
     });
+    setMemberDeleteRequestError(null);
     return null;
   }
 
@@ -104,6 +116,68 @@ export function TripDetailScreen({ tripId }: TripDetailScreenProps) {
       trip: result.trip,
     });
     return null;
+  }
+
+  function handleRequestDeleteMember(member: Member) {
+    if (loadState.status !== "ready") {
+      setMemberDeleteRequestError(
+        "旅行データの読み込みが終わってから、もう一度お試しください。",
+      );
+      return;
+    }
+
+    const result = removeMemberFromTrip(
+      loadState.appData,
+      tripId,
+      member.id,
+    );
+
+    if (!result.ok) {
+      setMemberDeleteRequestError(result.error);
+      return;
+    }
+
+    setMemberDeleteRequestError(null);
+    setDeleteMemberError(null);
+    setMemberToDelete(member);
+  }
+
+  function handleCancelDeleteMember() {
+    setDeleteMemberError(null);
+    setMemberToDelete(null);
+  }
+
+  function handleConfirmDeleteMember() {
+    if (loadState.status !== "ready" || memberToDelete === null) {
+      return;
+    }
+
+    const result = removeMemberFromTrip(
+      loadState.appData,
+      tripId,
+      memberToDelete.id,
+    );
+
+    if (!result.ok) {
+      setDeleteMemberError(result.error);
+      return;
+    }
+
+    const saveResult = saveAppData(window.localStorage, result.data);
+
+    if (!saveResult.ok) {
+      setDeleteMemberError(saveResult.error.message);
+      return;
+    }
+
+    setLoadState({
+      status: "ready",
+      appData: result.data,
+      trip: result.trip,
+    });
+    setMemberDeleteRequestError(null);
+    setDeleteMemberError(null);
+    setMemberToDelete(null);
   }
 
   function handleRequestDeletePayment(payment: Payment) {
@@ -144,6 +218,7 @@ export function TripDetailScreen({ tripId }: TripDetailScreenProps) {
       appData: result.data,
       trip: result.trip,
     });
+    setMemberDeleteRequestError(null);
     setDeletePaymentError(null);
     setPaymentToDelete(null);
   }
@@ -186,10 +261,26 @@ export function TripDetailScreen({ tripId }: TripDetailScreenProps) {
             trip={loadState.trip}
             onAddMember={handleAddMember}
             onAddPayment={handleAddPayment}
+            memberDeleteError={memberDeleteRequestError}
+            onRequestDeleteMember={handleRequestDeleteMember}
             onRequestDeletePayment={handleRequestDeletePayment}
           />
         )}
       </main>
+
+      <ConfirmDialog
+        open={memberToDelete !== null}
+        title={
+          memberToDelete === null
+            ? "メンバーを削除しますか？"
+            : `「${memberToDelete.name}」を削除しますか？`
+        }
+        description="このメンバーを旅行から削除します。削除後の参加者をもとに精算結果も再計算されます。この操作は元に戻せません。"
+        confirmLabel="メンバーを削除する"
+        error={deleteMemberError}
+        onCancel={handleCancelDeleteMember}
+        onConfirm={handleConfirmDeleteMember}
+      />
 
       <ConfirmDialog
         open={paymentToDelete !== null}
@@ -261,6 +352,8 @@ interface TripDetailsProps {
   readonly trip: Trip;
   readonly onAddMember: (memberName: string) => string | null;
   readonly onAddPayment: (payment: Payment) => string | null;
+  readonly memberDeleteError: string | null;
+  readonly onRequestDeleteMember: (member: Member) => void;
   readonly onRequestDeletePayment: (payment: Payment) => void;
 }
 
@@ -268,6 +361,8 @@ function TripDetails({
   trip,
   onAddMember,
   onAddPayment,
+  memberDeleteError,
+  onRequestDeleteMember,
   onRequestDeletePayment,
 }: TripDetailsProps) {
   return (
@@ -292,7 +387,12 @@ function TripDetails({
       <SettlementSummary trip={trip} />
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(18rem,0.78fr)_minmax(0,1.22fr)]">
-        <MemberList members={trip.members} onAddMember={onAddMember} />
+        <MemberList
+          members={trip.members}
+          onAddMember={onAddMember}
+          deleteError={memberDeleteError}
+          onRequestDeleteMember={onRequestDeleteMember}
+        />
         <PaymentList
           members={trip.members}
           payments={trip.payments}

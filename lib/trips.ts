@@ -26,6 +26,14 @@ export type AddMemberResult =
     }
   | { readonly ok: false; readonly error: string };
 
+export type RemoveMemberResult =
+  | {
+      readonly ok: true;
+      readonly data: AppData;
+      readonly trip: Trip;
+    }
+  | { readonly ok: false; readonly error: string };
+
 type CreateId = () => string;
 
 export function validateCreateTripInput(
@@ -164,5 +172,59 @@ export function addMemberToTrip(
     },
     trip: updatedTrip,
     member,
+  };
+}
+
+export function removeMemberFromTrip(
+  appData: AppData,
+  tripId: string,
+  memberId: string,
+): RemoveMemberResult {
+  const trip = findTripById(appData, tripId);
+
+  if (trip === null) {
+    return { ok: false, error: "旅行が見つかりません。" };
+  }
+
+  if (!trip.members.some((member) => member.id === memberId)) {
+    return { ok: false, error: "削除するメンバーが見つかりません。" };
+  }
+
+  if (trip.members.length <= MINIMUM_MEMBER_COUNT) {
+    return {
+      ok: false,
+      error:
+        "旅行には2人以上のメンバーが必要です。別のメンバーを追加してから削除してください。",
+    };
+  }
+
+  const isUsedByPayment = trip.payments.some(
+    (payment) =>
+      payment.payerId === memberId ||
+      payment.splitAmongMemberIds.includes(memberId),
+  );
+
+  if (isUsedByPayment) {
+    return {
+      ok: false,
+      error:
+        "このメンバーを含む支払いがあります。該当する支払いを先に削除してください。",
+    };
+  }
+
+  const updatedTrip: Trip = {
+    ...trip,
+    members: trip.members.filter((member) => member.id !== memberId),
+  };
+
+  return {
+    ok: true,
+    data: {
+      ...appData,
+      trips: appData.trips.map((currentTrip) =>
+        currentTrip.id === tripId ? updatedTrip : currentTrip,
+      ),
+    },
+    trip: updatedTrip,
   };
 }

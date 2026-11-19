@@ -5,9 +5,16 @@ import { MemberForm } from "./member-form";
 interface MemberListProps {
   readonly members: readonly Member[];
   readonly onAddMember: (memberName: string) => string | null;
+  readonly deleteError: string | null;
+  readonly onRequestDeleteMember: (member: Member) => void;
 }
 
-export function MemberList({ members, onAddMember }: MemberListProps) {
+export function MemberList({
+  members,
+  onAddMember,
+  deleteError,
+  onRequestDeleteMember,
+}: MemberListProps) {
   return (
     <section
       aria-labelledby="member-list-title"
@@ -32,6 +39,15 @@ export function MemberList({ members, onAddMember }: MemberListProps) {
 
       <MemberForm onAddMember={onAddMember} />
 
+      {deleteError !== null && (
+        <p
+          role="alert"
+          className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-800"
+        >
+          {deleteError}
+        </p>
+      )}
+
       <ol className="mt-6 space-y-3">
         {members.map((member, index) => (
           <li
@@ -47,6 +63,14 @@ export function MemberList({ members, onAddMember }: MemberListProps) {
             <span className="min-w-0 break-words font-semibold text-slate-800">
               {member.name}
             </span>
+            <button
+              type="button"
+              aria-label={`「${member.name}」を削除`}
+              className="ml-auto min-h-11 shrink-0 rounded-xl px-3 text-sm font-bold text-red-600 transition hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
+              onClick={() => onRequestDeleteMember(member)}
+            >
+              削除
+            </button>
           </li>
         ))}
       </ol>
