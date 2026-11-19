@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { addPaymentToTrip } from "@/lib/payments";
 import { loadAppData, saveAppData } from "@/lib/storage";
 import { addMemberToTrip, findTripById } from "@/lib/trips";
-import type { AppData, Trip } from "@/types/domain";
+import type { AppData, Payment, Trip } from "@/types/domain";
 
 import { MemberList } from "./member-list";
 import { PaymentList } from "./payment-list";
@@ -74,6 +75,31 @@ export function TripDetailScreen({ tripId }: TripDetailScreenProps) {
     return null;
   }
 
+  function handleAddPayment(payment: Payment): string | null {
+    if (loadState.status !== "ready") {
+      return "旅行データの読み込みが終わってから、もう一度お試しください。";
+    }
+
+    const result = addPaymentToTrip(loadState.appData, tripId, payment);
+
+    if (!result.ok) {
+      return result.error;
+    }
+
+    const saveResult = saveAppData(window.localStorage, result.data);
+
+    if (!saveResult.ok) {
+      return saveResult.error.message;
+    }
+
+    setLoadState({
+      status: "ready",
+      appData: result.data,
+      trip: result.trip,
+    });
+    return null;
+  }
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-50 text-slate-900">
       <div
@@ -111,6 +137,7 @@ export function TripDetailScreen({ tripId }: TripDetailScreenProps) {
           <TripDetails
             trip={loadState.trip}
             onAddMember={handleAddMember}
+            onAddPayment={handleAddPayment}
           />
         )}
       </main>
@@ -170,9 +197,14 @@ function MessageState({
 interface TripDetailsProps {
   readonly trip: Trip;
   readonly onAddMember: (memberName: string) => string | null;
+  readonly onAddPayment: (payment: Payment) => string | null;
 }
 
-function TripDetails({ trip, onAddMember }: TripDetailsProps) {
+function TripDetails({
+  trip,
+  onAddMember,
+  onAddPayment,
+}: TripDetailsProps) {
   return (
     <div className="mt-6 space-y-6">
       <header className="rounded-3xl border border-slate-200 bg-white/90 p-6 shadow-[0_18px_50px_-28px_rgba(15,23,42,0.35)] backdrop-blur sm:p-8">
@@ -194,7 +226,11 @@ function TripDetails({ trip, onAddMember }: TripDetailsProps) {
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(18rem,0.78fr)_minmax(0,1.22fr)]">
         <MemberList members={trip.members} onAddMember={onAddMember} />
-        <PaymentList members={trip.members} payments={trip.payments} />
+        <PaymentList
+          members={trip.members}
+          payments={trip.payments}
+          onAddPayment={onAddPayment}
+        />
       </div>
     </div>
   );

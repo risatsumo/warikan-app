@@ -1,13 +1,20 @@
 import type { Member, Payment } from "@/types/domain";
 
+import { PaymentForm } from "./payment-form";
+
 interface PaymentListProps {
   readonly members: readonly Member[];
   readonly payments: readonly Payment[];
+  readonly onAddPayment: (payment: Payment) => string | null;
 }
 
 const yenFormatter = new Intl.NumberFormat("ja-JP");
 
-export function PaymentList({ members, payments }: PaymentListProps) {
+export function PaymentList({
+  members,
+  payments,
+  onAddPayment,
+}: PaymentListProps) {
   const memberNameById = new Map(
     members.map((member) => [member.id, member.name]),
   );
@@ -34,7 +41,9 @@ export function PaymentList({ members, payments }: PaymentListProps) {
         </span>
       </div>
 
-      <div className="mt-6">
+      <PaymentForm members={members} onAddPayment={onAddPayment} />
+
+      <div className="mt-8 border-t border-slate-200 pt-6">
         {payments.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-10 text-center">
             <div
