@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 旅行用割り勘アプリ
 
-## Getting Started
+旅行の参加者と支払いを登録し、「誰が誰にいくら送ればよいか」を1円単位で計算するNext.jsアプリです。データは同じブラウザーの`localStorage`に保存します。
 
-First, run the development server:
+## 主な機能
+
+- 複数の旅行を作成・保存・削除
+- 参加者の追加と、支払いに関係する参加者の安全な削除制限
+- 支払った人、金額、内容、費用を負担する人の登録
+- 一部の参加者だけが負担する立て替えに対応
+- 端数を含む最終負担額と送金案の自動計算
+
+## ローカル開発
+
+必要環境はNode.js 24とnpmです。
 
 ```bash
+npm ci
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+起動後に[http://localhost:3000](http://localhost:3000)を開きます。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Dockerで起動
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Docker Desktopを起動した状態で、プロジェクト直下で次を実行します。
 
-## Learn More
+```bash
+docker compose up --build
+```
 
-To learn more about Next.js, take a look at the following resources:
+ビルド後に[http://localhost:3000](http://localhost:3000)を開きます。停止するときはターミナルで`Ctrl + C`を押します。作成されたコンテナーを削除する場合は次を実行します。
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+docker compose down
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Docker構成はNext.jsの`standalone`出力を使うマルチステージビルドです。実行用イメージに必要なファイルだけを入れ、rootではなくNode.js公式イメージの`node`ユーザーで実行します。
 
-## Deploy on Vercel
+## 品質確認
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm test
+npm run lint
+npm run build
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 使用技術
+
+- Next.js 16（App Router）
+- React 19
+- TypeScript
+- Tailwind CSS 4
+- Docker

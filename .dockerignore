@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+.gitignore
+.env
+.env.*
+*.log
+coverage
+docs
+AGENTS.md
+PROJECT_CONTEXT.md

@@ -1,0 +1,9 @@
+services:
+  warikan-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: warikan-app:local
+    init: true
+    ports:
+      - "3000:3000"

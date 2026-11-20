@@ -103,13 +103,13 @@ Windows／PowerShellを使用している。必要に応じて現在のターミ
 4. 初期画面の起動を確認する。
 5. Gitで初期状態を記録し、GitHub接続の準備をする。
 
-## 実環境で確認した現在の状態（2026-11-19）
+## 実環境で確認した現在の状態（2026-11-21）
 
 引き継ぎ後の確認結果。上にある「引き継ぎ時点」の情報と異なる場合は、この節を優先する。
 
 - Node.js v24.19.0、npm 11.17.0、Git 2.55.0.windows.4、Codex CLI 0.148.0を確認済み。
-- Dockerコマンドは現在のPATHでは未検出。
-- WSLは未導入で、`wsl --install` の案内が表示される状態。
+- Docker Desktop 4.99.0をユーザー単位で導入済み。Docker CLIは29.9.3。
+- WSL 3.0.5.0を導入し、既定バージョンはWSL 2に設定済み。Linuxディストリビューションは未導入だが、Docker DesktopのWSL 2バックエンドには必須ではない。
 - Next.js 16.4.6、React 19.3.0、TypeScript 5.9.3、Tailwind CSS 4.3.3をインストール済み。
 - `src`ディレクトリは使用しておらず、App Routerの `app` ディレクトリはリポジトリ直下にある。
 - TypeScriptのstrictモード、ESLint、Tailwind CSS、標準の `@/*` import aliasを確認済み。
@@ -118,4 +118,8 @@ Windows／PowerShellを使用している。必要に応じて現在のターミ
 - 初期画面は `http://localhost:3000` でHTTP 200を確認済み。
 - `npm run lint` と `npm run build` は成功済み。
 - Gitは `main` ブランチを使用し、非公開GitHubリポジトリ `risatsumo/warikan-app` の `origin/main` へ接続・push済み。
-- 割り勘機能は未実装。
+- 旅行、参加者、支払いの追加・削除、一部メンバーだけの負担、端数処理、精算結果表示を実装済み。
+- `localStorage`で複数旅行を保存し、再読み込み後も復元できる。
+- 自動テス36件、型チェック、Lint、本番ビルド、主要機能の画面操作を確認済み。
+- Next.jsの`output: "standalone"`とマルチステージビルドを使うDocker構成を追加。実イメージのビルド、非root実行、HTTP 200応答を確認済み。
+- 複数通貨の換算ルールは未決定で、未実装。
