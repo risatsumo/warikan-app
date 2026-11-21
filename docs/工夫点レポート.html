@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>旅行用割り勘アプリ - 工夫点レポート</title>
+    <style>
+      @page {
+        size: A4 portrait;
+        margin: 0;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #dbe3ec;
+        color: #172033;
+        font-family:
+          "Yu Gothic",
+          "YuGothic",
+          "Meiryo",
+          sans-serif;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      body {
+        display: flex;
+        justify-content: center;
+      }
+
+      .page {
+        position: relative;
+        width: 210mm;
+        height: 297mm;
+        overflow: hidden;
+        background: #f8fafc;
+        box-shadow: 0 18px 50px rgb(15 23 42 / 20%);
+      }
+
+      .header {
+        position: relative;
+        height: 46mm;
+        overflow: hidden;
+        padding: 10mm 14mm 8mm;
+        color: white;
+        background:
+          radial-gradient(circle at 92% 15%, rgb(56 189 248 / 45%), transparent 32%),
+          radial-gradient(circle at 5% 110%, rgb(245 158 11 / 36%), transparent 38%),
+          linear-gradient(128deg, #0f172a 0%, #172554 54%, #075985 100%);
+      }
+
+      .header::after {
+        position: absolute;
+        right: -15mm;
+        bottom: -27mm;
+        width: 80mm;
+        height: 80mm;
+        border: 1px solid rgb(255 255 255 / 16%);
+        border-radius: 50%;
+        content: "";
+      }
+
+      .eyebrow {
+        margin: 0 0 2.5mm;
+        color: #bae6fd;
+        font-size: 8.5pt;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 24pt;
+        line-height: 1.16;
+        letter-spacing: 0.01em;
+      }
+
+      .subtitle {
+        margin: 2.2mm 0 0;
+        color: #e2e8f0;
+        font-size: 10pt;
+        font-weight: 600;
+      }
+
+      .tech-list {
+        position: absolute;
+        right: 14mm;
+        bottom: 8mm;
+        z-index: 1;
+        display: flex;
+        gap: 2mm;
+      }
+
+      .tech {
+        padding: 1.3mm 2.4mm;
+        border: 1px solid rgb(255 255 255 / 22%);
+        border-radius: 999px;
+        color: #f8fafc;
+        background: rgb(15 23 42 / 28%);
+        font-size: 7.2pt;
+        font-weight: 700;
+      }
+
+      main {
+        padding: 7mm 13mm 6mm;
+      }
+
+      .intro {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 59mm;
+        gap: 5mm;
+        align-items: stretch;
+      }
+
+      .lead {
+        margin: 0;
+        padding: 4.2mm 5mm;
+        border-left: 1.6mm solid #0284c7;
+        border-radius: 0 3mm 3mm 0;
+        color: #334155;
+        background: #e0f2fe;
+        font-size: 8.7pt;
+        font-weight: 600;
+        line-height: 1.65;
+      }
+
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 2mm;
+      }
+
+      .metric {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        justify-content: center;
+        border: 0.25mm solid #cbd5e1;
+        border-radius: 3mm;
+        text-align: center;
+        background: white;
+      }
+
+      .metric strong {
+        color: #0369a1;
+        font-size: 15pt;
+        line-height: 1;
+      }
+
+      .metric span {
+        margin-top: 1.2mm;
+        color: #64748b;
+        font-size: 6.7pt;
+        font-weight: 700;
+      }
+
+      .two-columns {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 4mm;
+        margin-top: 4mm;
+      }
+
+      .card {
+        position: relative;
+        padding: 4.3mm 4.8mm;
+        border: 0.25mm solid #dbe3ec;
+        border-radius: 3.4mm;
+        background: white;
+        box-shadow: 0 2mm 7mm rgb(15 23 42 / 5%);
+      }
+
+      .card-title {
+        display: flex;
+        gap: 2.5mm;
+        align-items: center;
+        margin: 0 0 2.4mm;
+        color: #0f172a;
+        font-size: 10.2pt;
+        line-height: 1.35;
+      }
+
+      .number {
+        display: inline-flex;
+        width: 7mm;
+        height: 7mm;
+        flex: 0 0 auto;
+        align-items: center;
+        justify-content: center;
+        border-radius: 2.2mm;
+        color: white;
+        background: #0284c7;
+        font-size: 7pt;
+        font-weight: 800;
+      }
+
+      .card p,
+      .card li {
+        color: #475569;
+        font-size: 7.75pt;
+        line-height: 1.52;
+      }
+
+      .card p {
+        margin: 0;
+      }
+
+      .card ul {
+        margin: 1.5mm 0 0;
+        padding-left: 4.6mm;
+      }
+
+      .card li + li {
+        margin-top: 0.75mm;
+      }
+
+      .flow {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr auto 1fr;
+        gap: 1.2mm;
+        align-items: center;
+        margin-top: 2.6mm;
+      }
+
+      .flow-box {
+        padding: 2mm 1.4mm;
+        border-radius: 2mm;
+        color: #0c4a6e;
+        text-align: center;
+        background: #e0f2fe;
+        font-size: 6.5pt;
+        font-weight: 700;
+        line-height: 1.35;
+      }
+
+      .arrow {
+        color: #94a3b8;
+        font-size: 9pt;
+        font-weight: 800;
+      }
+
+      .api-note {
+        margin-top: 2.4mm !important;
+        padding: 2mm 2.5mm;
+        border-radius: 2mm;
+        color: #075985 !important;
+        background: #f0f9ff;
+        font-size: 6.8pt !important;
+      }
+
+      .ux-card {
+        margin-top: 4mm;
+        border-color: #fde68a;
+        background:
+          linear-gradient(135deg, rgb(255 251 235 / 96%), rgb(255 255 255 / 96%));
+      }
+
+      .ux-card .number {
+        background: #d97706;
+      }
+
+      .ux-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 2mm 7mm;
+        margin-top: 1.2mm;
+      }
+
+      .ux-item {
+        position: relative;
+        margin: 0;
+        padding-left: 4.8mm;
+        color: #475569;
+        font-size: 7.55pt;
+        line-height: 1.5;
+      }
+
+      .ux-item::before {
+        position: absolute;
+        top: 0.15mm;
+        left: 0;
+        display: inline-flex;
+        width: 3.5mm;
+        height: 3.5mm;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        color: white;
+        background: #f59e0b;
+        content: "✓";
+        font-size: 5.4pt;
+        font-weight: 900;
+      }
+
+      .ux-item strong {
+        color: #92400e;
+      }
+
+      .bottom-grid {
+        display: grid;
+        grid-template-columns: 1.07fr 0.93fr;
+        gap: 4mm;
+        margin-top: 4mm;
+      }
+
+      .layers {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.6mm;
+        margin-top: 2.4mm;
+      }
+
+      .layer {
+        padding: 2.2mm 1.5mm;
+        border-radius: 2mm;
+        text-align: center;
+        background: #f1f5f9;
+      }
+
+      .layer strong {
+        display: block;
+        color: #334155;
+        font-size: 6.9pt;
+      }
+
+      .layer span {
+        display: block;
+        margin-top: 0.8mm;
+        color: #64748b;
+        font-size: 5.8pt;
+        line-height: 1.35;
+      }
+
+      .quality-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1.6mm;
+        margin-top: 2.4mm;
+      }
+
+      .quality {
+        padding: 1.8mm 2mm;
+        border-radius: 2mm;
+        color: #334155;
+        background: #f1f5f9;
+        font-size: 6.4pt;
+        font-weight: 700;
+        line-height: 1.35;
+      }
+
+      footer {
+        position: absolute;
+        right: 13mm;
+        bottom: 5.5mm;
+        left: 13mm;
+        display: flex;
+        justify-content: space-between;
+        padding-top: 2.8mm;
+        border-top: 0.25mm solid #cbd5e1;
+        color: #64748b;
+        font-size: 6.3pt;
+        font-weight: 600;
+      }
+
+      @media print {
+        body {
+          display: block;
+          background: white;
+        }
+
+        .page {
+          box-shadow: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <article class="page">
+      <header class="header">
+        <p class="eyebrow">STARUP 長期インターン選考課題</p>
+        <h1>旅行用割り勘アプリ</h1>
+        <p class="subtitle">工夫点レポート - 正確さと使いやすさを両立する設計</p>
+        <div class="tech-list" aria-label="使用技術">
+          <span class="tech">Next.js 16 / App Router</span>
+          <span class="tech">TypeScript</span>
+          <span class="tech">Tailwind CSS</span>
+          <span class="tech">Docker</span>
+        </div>
+      </header>
+
+      <main>
+        <section class="intro" aria-label="概要">
+          <p class="lead">
+            旅行中の実際の支払い記録を保ったまま、参加者・負担者・複数通貨をまとめて精算できるWebアプリです。入力ミスを防ぎ、同じデータから常に説明可能な精算結果を得られることを重視しました。
+          </p>
+          <div class="metrics" aria-label="実装規模">
+            <div class="metric"><strong>10</strong><span>対応通貨</span></div>
+            <div class="metric"><strong>60</strong><span>自動テスト</span></div>
+            <div class="metric"><strong>2</strong><span>主要画面</span></div>
+          </div>
+        </section>
+
+        <div class="two-columns">
+          <section class="card">
+            <h2 class="card-title"><span class="number">01</span>端数まで一致する精算計算</h2>
+            <p>
+              金額は「円・セント」などの最小単位の整数で保存し、為替換算と途中計算はBigIntによる正確な分数で処理します。支払いごとには丸めず、旅行全体を合計してから端数を配分するため、総費用と全員の負担額が必ず一致します。
+            </p>
+            <div class="flow" aria-label="精算計算の流れ">
+              <span class="flow-box">元通貨の<br />支払い</span><span class="arrow">→</span>
+              <span class="flow-box">正確な換算・<br />負担計算</span><span class="arrow">→</span>
+              <span class="flow-box">選択通貨の<br />送金結果</span>
+            </div>
+          </section>
+
+          <section class="card">
+            <h2 class="card-title"><span class="number">02</span>表示変更ではなく、通貨ごと再計算</h2>
+            <p>
+              JPY／現地通貨を切り替えるたび、全支払いを選択通貨へ換算して負担額・端数・送金額を最初から再計算します。旅行途中で現地通貨を変更しても、既存支払いは元通貨のまま保持し、精算時に換算します。
+            </p>
+            <p class="api-note">
+              為替APIはキー不要のFrankfurter v2を採用。Docker起動後すぐ試せ、取得失敗時は手入力で継続できます。レート・基準日・取得元も保存します。
+            </p>
+          </section>
+        </div>
+
+        <section class="card ux-card">
+          <h2 class="card-title"><span class="number">03</span>利用者目線で追加したUI・UX改善</h2>
+          <div class="ux-grid">
+            <p class="ux-item">
+              <strong>旅行設定を編集</strong>を押した時だけ、旅行名・通貨・メンバー・レートを表示。頻度の低い操作を通常画面から分離しました。
+            </p>
+            <p class="ux-item">
+              参加者は<strong>旅行タイトル直下へコンパクトに表示</strong>し、支払いと精算を中心に確認できる情報量へ整理しました。
+            </p>
+            <p class="ux-item">
+              精算は番号や敬称を省き、<strong>「送金元 → 送金先」と金額を最初に表示</strong>。実際に必要な行動を見つけやすくしました。
+            </p>
+            <p class="ux-item">
+              メンバー別内訳は送金内容の下で<strong>初期状態を折り畳み</strong>、必要な時だけ詳しい支払額・負担額を確認できます。
+            </p>
+            <p class="ux-item">
+              支払い履歴には見出しと<strong>編集機能</strong>を追加。入力を直しても同じ支払いID・表示順を保ち、精算を自動更新します。
+            </p>
+            <p class="ux-item">
+              <strong>精算結果をコピー</strong>でき、旅行名・精算通貨・誰から誰へいくら送るかを、そのままメッセージで共有できます。
+            </p>
+          </div>
+        </section>
+
+        <div class="bottom-grid">
+          <section class="card">
+            <h2 class="card-title"><span class="number">04</span>役割で分けたコンポーネント設計</h2>
+            <p>
+              画面表示、入力処理、計算、保存を役割ごとに分離しました。変更の影響範囲を小さくし、精算ロジックをUIから独立してテストできます。
+            </p>
+            <div class="layers" aria-label="コンポーネント構成">
+              <div class="layer"><strong>画面</strong><span>Trip / Payment / Settlement</span></div>
+              <div class="layer"><strong>計算</strong><span>payments / settlement / rates</span></div>
+              <div class="layer"><strong>保存</strong><span>storage / domain types</span></div>
+            </div>
+          </section>
+
+          <section class="card">
+            <h2 class="card-title"><span class="number">05</span>壊れにくさを支える品質対策</h2>
+            <div class="quality-list">
+              <span class="quality">TypeScript strict</span>
+              <span class="quality">60件の自動テスト</span>
+              <span class="quality">入力値を二重検証</span>
+              <span class="quality">削除前の確認画面</span>
+              <span class="quality">旧データ自動移行</span>
+              <span class="quality">レスポンシブ対応</span>
+              <span class="quality">API応答を検証</span>
+              <span class="quality">非root Docker実行</span>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <footer>
+        <span>Repository: github.com/risatsumo/warikan-app</span>
+        <span>設計方針: 入力事実を保持し、計算結果は常に再生成</span>
+      </footer>
+    </article>
+  </body>
+</html>

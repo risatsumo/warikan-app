@@ -52,6 +52,11 @@ npm run lint
 npm run build
 ```
 
+## 提出用資料
+
+- [工夫点レポート（PDF）](output/pdf/warikan-app-ingenuity-report.pdf)
+- [工夫点レポートの編集用HTML](docs/工夫点レポート.html)
+
 ## 使用技術
 
 - Next.js 16（App Router）
