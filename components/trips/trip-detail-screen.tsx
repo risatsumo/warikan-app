@@ -493,6 +493,12 @@ function TripDetails({
             <h1 className="mt-3 break-words text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
               {trip.name}
             </h1>
+            <p className="mt-4 break-words text-sm leading-6 text-slate-600">
+              <span className="mr-2 font-bold text-slate-800">
+                参加者（{trip.members.length}人）
+              </span>
+              {trip.members.map((member) => member.name).join("、")}
+            </p>
           </div>
           <button
             type="button"
@@ -504,9 +510,6 @@ function TripDetails({
           </button>
         </div>
         <div className="mt-5 flex flex-wrap gap-2 text-sm font-semibold">
-          <span className="rounded-full bg-sky-50 px-3 py-1.5 text-sky-700">
-            参加者 {trip.members.length}人
-          </span>
           <span className="rounded-full bg-amber-50 px-3 py-1.5 text-amber-700">
             支払い {trip.payments.length}件
           </span>
@@ -538,21 +541,13 @@ function TripDetails({
             onChangeSettlementCurrency={onChangeSettlementCurrency}
           />
 
-          <div className="grid items-start gap-6 lg:grid-cols-[minmax(18rem,0.78fr)_minmax(0,1.22fr)]">
-            <MemberList
-              members={trip.members}
-              onAddMember={onAddMember}
-              deleteError={memberDeleteError}
-              onRequestDeleteMember={onRequestDeleteMember}
-            />
-            <PaymentList
-              members={trip.members}
-              localCurrency={trip.localCurrency}
-              payments={trip.payments}
-              onAddPayment={onAddPayment}
-              onRequestDeletePayment={onRequestDeletePayment}
-            />
-          </div>
+          <PaymentList
+            members={trip.members}
+            localCurrency={trip.localCurrency}
+            payments={trip.payments}
+            onAddPayment={onAddPayment}
+            onRequestDeletePayment={onRequestDeletePayment}
+          />
         </>
       )}
     </div>

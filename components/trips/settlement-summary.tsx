@@ -160,30 +160,36 @@ export function SettlementSummary({
                   </p>
                 </div>
               ) : (
-                <ol className="mt-3 space-y-3">
+                <ul className="mt-3 space-y-3">
                   {calculation.settlement.transfers.map((transfer, index) => (
                     <li
                       key={`${transfer.fromMemberId}-${transfer.toMemberId}-${index}`}
-                      className="flex min-w-0 items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4"
+                      className="grid min-w-0 gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
                     >
-                      <span
-                        aria-hidden="true"
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-sm font-bold text-emerald-700 shadow-sm"
-                      >
-                        {index + 1}
-                      </span>
                       <div className="min-w-0">
-                        <p className="break-words text-sm leading-6 text-slate-700">
-                          <span className="font-bold text-slate-950">
+                        <p className="text-xs font-semibold text-slate-500">
+                          送金元 → 送金先
+                        </p>
+                        <p
+                          aria-label={`${transfer.fromMemberName}さんから${transfer.toMemberName}さんへ`}
+                          className="mt-2 flex flex-wrap items-center gap-2 text-base font-bold"
+                        >
+                          <span className="min-w-0 break-words rounded-lg bg-amber-100 px-3 py-1.5 text-amber-900">
                             {transfer.fromMemberName}さん
                           </span>
-                          から、
-                          <span className="font-bold text-slate-950">
+                          <span aria-hidden="true" className="text-lg text-slate-400">
+                            →
+                          </span>
+                          <span className="min-w-0 break-words rounded-lg bg-sky-100 px-3 py-1.5 text-sky-900">
                             {transfer.toMemberName}さん
                           </span>
-                          へ
                         </p>
-                        <p className="mt-1 break-words text-xl font-bold text-emerald-800">
+                      </div>
+                      <div className="min-w-0 sm:text-right">
+                        <p className="text-xs font-semibold text-slate-500">
+                          送金額
+                        </p>
+                        <p className="mt-1 break-words text-2xl font-bold text-emerald-800">
                           {formatMoney(
                             transfer.amount,
                             calculation.settlement.currency,
@@ -192,7 +198,7 @@ export function SettlementSummary({
                       </div>
                     </li>
                   ))}
-                </ol>
+                </ul>
               )}
             </section>
           </div>
