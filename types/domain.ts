@@ -13,7 +13,7 @@ export type CurrencyCode =
 
 /** localStorage に保存するアプリ全体のデータ。 */
 export interface AppData {
-  readonly version: 2;
+  readonly version: 3;
   readonly trips: readonly Trip[];
 }
 
@@ -23,14 +23,15 @@ export interface Trip {
   readonly name: string;
   readonly localCurrency: CurrencyCode;
   readonly settlementCurrency: CurrencyCode;
-  readonly exchangeRate: ExchangeRate | null;
+  readonly exchangeRates: readonly ExchangeRate[];
   readonly members: readonly Member[];
   readonly payments: readonly Payment[];
 }
 
-/** 1現地通貨を何円として換算するかを表す。 */
+/** 1通貨を何円として換算するかを表す。 */
 export interface ExchangeRate {
-  readonly jpyPerLocalCurrency: string;
+  readonly currency: CurrencyCode;
+  readonly jpyPerCurrency: string;
   readonly source: "frankfurter" | "manual";
   readonly rateDate: string | null;
   readonly updatedAt: string;

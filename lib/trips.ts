@@ -23,6 +23,11 @@ export interface CreateTripValidationErrors {
   readonly memberNames: readonly (string | null)[];
 }
 
+export interface UpdateTripSettingsInput {
+  readonly name: string;
+  readonly localCurrency: CurrencyCode;
+}
+
 export type CreateTripResult =
   | { readonly ok: true; readonly trip: Trip }
   | { readonly ok: false; readonly errors: CreateTripValidationErrors };
@@ -114,7 +119,7 @@ export function createTrip(
       name: input.name.trim(),
       localCurrency: input.localCurrency,
       settlementCurrency: "JPY",
-      exchangeRate: null,
+      exchangeRates: [],
       members: input.memberNames.map((name) => ({
         id: createId(),
         name: name.trim(),
@@ -122,6 +127,39 @@ export function createTrip(
       payments: [],
     },
   };
+}
+
+export function updateTripSettings(
+  appData: AppData,
+  tripId: string,
+  input: UpdateTripSettingsInput,
+): UpdateTripResult {
+  const trip = findTripById(appData, tripId);
+
+  if (trip === null) {
+    return { ok: false, error: "旅行が見つかりません。" };
+  }
+
+  const normalizedName = input.name.trim();
+
+  if (normalizedName === "") {
+    return { ok: false, error: "旅行名を入力してください。" };
+  }
+
+  if (!isSupportedCurrencyCode(input.localCurrency)) {
+    return { ok: false, error: "現地通貨を正しく選択してください。" };
+  }
+
+  const localCurrencyChanged = trip.localCurrency !== input.localCurrency;
+
+  return replaceTrip(appData, {
+    ...trip,
+    name: normalizedName,
+    localCurrency: input.localCurrency,
+    settlementCurrency: localCurrencyChanged
+      ? "JPY"
+      : trip.settlementCurrency,
+  });
 }
 
 export function updateTripSettlementCurrency(
@@ -159,10 +197,6 @@ export function updateTripExchangeRate(
     return { ok: false, error: "旅行が見つかりません。" };
   }
 
-  if (trip.localCurrency === "JPY") {
-    return { ok: false, error: "日本円の旅行に為替レートは必要ありません。" };
-  }
-
   const validatedRate = createExchangeRate(exchangeRate);
 
   if (validatedRate === null) {
@@ -171,7 +205,13 @@ export function updateTripExchangeRate(
 
   return replaceTrip(appData, {
     ...trip,
-    exchangeRate: validatedRate,
+    exchangeRates: trip.exchangeRates.some(
+      (rate) => rate.currency === validatedRate.currency,
+    )
+      ? trip.exchangeRates.map((rate) =>
+          rate.currency === validatedRate.currency ? validatedRate : rate,
+        )
+      : [...trip.exchangeRates, validatedRate],
   });
 }
 

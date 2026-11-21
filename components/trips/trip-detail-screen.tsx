@@ -11,6 +11,7 @@ import {
   removeMemberFromTrip,
   updateTripExchangeRate,
   updateTripSettlementCurrency,
+  updateTripSettings,
 } from "@/lib/trips";
 import type {
   AppData,
@@ -22,10 +23,10 @@ import type {
 } from "@/types/domain";
 
 import { ConfirmDialog } from "../ui/confirm-dialog";
-import { CurrencySettings } from "./currency-settings";
 import { MemberList } from "./member-list";
 import { PaymentList } from "./payment-list";
 import { SettlementSummary } from "./settlement-summary";
+import { TripSettings } from "./trip-settings";
 
 interface TripDetailScreenProps {
   readonly tripId: string;
@@ -138,6 +139,34 @@ export function TripDetailScreen({ tripId }: TripDetailScreenProps) {
       tripId,
       exchangeRate,
     );
+
+    if (!result.ok) {
+      return result.error;
+    }
+
+    const saveResult = saveAppData(window.localStorage, result.data);
+
+    if (!saveResult.ok) {
+      return saveResult.error.message;
+    }
+
+    setLoadState({
+      status: "ready",
+      appData: result.data,
+      trip: result.trip,
+    });
+    return null;
+  }
+
+  function handleSaveTripSettings(input: {
+    readonly name: string;
+    readonly localCurrency: CurrencyCode;
+  }): string | null {
+    if (loadState.status !== "ready") {
+      return "旅行データの読み込みが終わってから、もう一度お試しください。";
+    }
+
+    const result = updateTripSettings(loadState.appData, tripId, input);
 
     if (!result.ok) {
       return result.error;
@@ -331,6 +360,7 @@ export function TripDetailScreen({ tripId }: TripDetailScreenProps) {
             trip={loadState.trip}
             onAddMember={handleAddMember}
             onAddPayment={handleAddPayment}
+            onSaveTripSettings={handleSaveTripSettings}
             onSaveExchangeRate={handleSaveExchangeRate}
             onChangeSettlementCurrency={handleChangeSettlementCurrency}
             memberDeleteError={memberDeleteRequestError}
@@ -424,6 +454,10 @@ interface TripDetailsProps {
   readonly trip: Trip;
   readonly onAddMember: (memberName: string) => string | null;
   readonly onAddPayment: (payment: Payment) => string | null;
+  readonly onSaveTripSettings: (input: {
+    readonly name: string;
+    readonly localCurrency: CurrencyCode;
+  }) => string | null;
   readonly onSaveExchangeRate: (
     exchangeRate: ExchangeRate,
   ) => string | null;
@@ -439,21 +473,36 @@ function TripDetails({
   trip,
   onAddMember,
   onAddPayment,
+  onSaveTripSettings,
   onSaveExchangeRate,
   onChangeSettlementCurrency,
   memberDeleteError,
   onRequestDeleteMember,
   onRequestDeletePayment,
 }: TripDetailsProps) {
+  const [isEditing, setIsEditing] = useState(false);
+
   return (
     <div className="mt-6 space-y-6">
       <header className="rounded-3xl border border-slate-200 bg-white/90 p-6 shadow-[0_18px_50px_-28px_rgba(15,23,42,0.35)] backdrop-blur sm:p-8">
-        <p className="text-sm font-bold uppercase tracking-[0.18em] text-sky-600">
-          Trip details
-        </p>
-        <h1 className="mt-3 break-words text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-          {trip.name}
-        </h1>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-bold uppercase tracking-[0.18em] text-sky-600">
+              Trip details
+            </p>
+            <h1 className="mt-3 break-words text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
+              {trip.name}
+            </h1>
+          </div>
+          <button
+            type="button"
+            aria-pressed={isEditing}
+            className="min-h-11 shrink-0 rounded-xl border border-sky-200 bg-white px-4 py-2 text-sm font-bold text-sky-800 transition hover:bg-sky-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-700"
+            onClick={() => setIsEditing((currentValue) => !currentValue)}
+          >
+            {isEditing ? "編集を終了" : "旅行設定を編集"}
+          </button>
+        </div>
         <div className="mt-5 flex flex-wrap gap-2 text-sm font-semibold">
           <span className="rounded-full bg-sky-50 px-3 py-1.5 text-sky-700">
             参加者 {trip.members.length}人
@@ -467,32 +516,45 @@ function TripDetails({
         </div>
       </header>
 
-      <CurrencySettings
-        key={trip.id}
-        trip={trip}
-        onSaveExchangeRate={onSaveExchangeRate}
-      />
+      {isEditing ? (
+        <>
+          <TripSettings
+            trip={trip}
+            onSaveSettings={onSaveTripSettings}
+            onSaveExchangeRate={onSaveExchangeRate}
+          />
+          <MemberList
+            editable
+            members={trip.members}
+            onAddMember={onAddMember}
+            deleteError={memberDeleteError}
+            onRequestDeleteMember={onRequestDeleteMember}
+          />
+        </>
+      ) : (
+        <>
+          <SettlementSummary
+            trip={trip}
+            onChangeSettlementCurrency={onChangeSettlementCurrency}
+          />
 
-      <SettlementSummary
-        trip={trip}
-        onChangeSettlementCurrency={onChangeSettlementCurrency}
-      />
-
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(18rem,0.78fr)_minmax(0,1.22fr)]">
-        <MemberList
-          members={trip.members}
-          onAddMember={onAddMember}
-          deleteError={memberDeleteError}
-          onRequestDeleteMember={onRequestDeleteMember}
-        />
-        <PaymentList
-          members={trip.members}
-          localCurrency={trip.localCurrency}
-          payments={trip.payments}
-          onAddPayment={onAddPayment}
-          onRequestDeletePayment={onRequestDeletePayment}
-        />
-      </div>
+          <div className="grid items-start gap-6 lg:grid-cols-[minmax(18rem,0.78fr)_minmax(0,1.22fr)]">
+            <MemberList
+              members={trip.members}
+              onAddMember={onAddMember}
+              deleteError={memberDeleteError}
+              onRequestDeleteMember={onRequestDeleteMember}
+            />
+            <PaymentList
+              members={trip.members}
+              localCurrency={trip.localCurrency}
+              payments={trip.payments}
+              onAddPayment={onAddPayment}
+              onRequestDeletePayment={onRequestDeletePayment}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { MemberForm } from "./member-form";
 
 interface MemberListProps {
   readonly members: readonly Member[];
+  readonly editable?: boolean;
   readonly onAddMember: (memberName: string) => string | null;
   readonly deleteError: string | null;
   readonly onRequestDeleteMember: (member: Member) => void;
@@ -11,6 +12,7 @@ interface MemberListProps {
 
 export function MemberList({
   members,
+  editable = false,
   onAddMember,
   deleteError,
   onRequestDeleteMember,
@@ -37,9 +39,9 @@ export function MemberList({
         </span>
       </div>
 
-      <MemberForm onAddMember={onAddMember} />
+      {editable && <MemberForm onAddMember={onAddMember} />}
 
-      {deleteError !== null && (
+      {editable && deleteError !== null && (
         <p
           role="alert"
           className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-800"
@@ -63,14 +65,16 @@ export function MemberList({
             <span className="min-w-0 break-words font-semibold text-slate-800">
               {member.name}
             </span>
-            <button
-              type="button"
-              aria-label={`「${member.name}」を削除`}
-              className="ml-auto min-h-11 shrink-0 rounded-xl px-3 text-sm font-bold text-red-600 transition hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
-              onClick={() => onRequestDeleteMember(member)}
-            >
-              削除
-            </button>
+            {editable && (
+              <button
+                type="button"
+                aria-label={`「${member.name}」を削除`}
+                className="ml-auto min-h-11 shrink-0 rounded-xl px-3 text-sm font-bold text-red-600 transition hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
+                onClick={() => onRequestDeleteMember(member)}
+              >
+                削除
+              </button>
+            )}
           </li>
         ))}
       </ol>

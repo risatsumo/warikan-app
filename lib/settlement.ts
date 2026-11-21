@@ -71,6 +71,19 @@ export function calculateSettlement(
     };
   }
 
+  const missingRateCurrencies = findMissingRateCurrencies(
+    trip,
+    settlementCurrency,
+  );
+
+  if (missingRateCurrencies.length > 0) {
+    return {
+      ok: false,
+      code: "missing-exchange-rate",
+      error: `${missingRateCurrencies.join("・")}のJPY換算レートを設定してください。`,
+    };
+  }
+
   const paidFractionByMemberId = new Map<string, Fraction>(
     trip.members.map((member) => [
       member.id,
@@ -99,7 +112,7 @@ export function calculateSettlement(
       return {
         ok: false,
         code: "missing-exchange-rate",
-        error: `JPYと${trip.localCurrency}を換算する為替レートを設定してください。`,
+        error: "為替レートの形式が正しくありません。旅行設定を確認してください。",
       };
     }
 
@@ -230,37 +243,76 @@ function convertPaymentAmount(
     return { numerator: paymentAmount, denominator: ONE };
   }
 
-  if (trip.exchangeRate === null) {
+  const paymentRate = findRateFraction(trip, payment.currency);
+  const settlementRate = findRateFraction(trip, settlementCurrency);
+
+  if (paymentRate === null || settlementRate === null) {
     return null;
   }
 
-  const rate = exchangeRateToFraction(
-    trip.exchangeRate.jpyPerLocalCurrency,
+  const paymentMinorUnitFactor = BigInt(
+    10 ** getCurrencyFractionDigits(payment.currency),
+  );
+  const settlementMinorUnitFactor = BigInt(
+    10 ** getCurrencyFractionDigits(settlementCurrency),
   );
 
-  if (rate === null) {
-    return null;
+  return reduceFraction({
+    numerator:
+      paymentAmount *
+      paymentRate.numerator *
+      settlementRate.denominator *
+      settlementMinorUnitFactor,
+    denominator:
+      paymentMinorUnitFactor *
+      paymentRate.denominator *
+      settlementRate.numerator,
+  });
+}
+
+function findMissingRateCurrencies(
+  trip: Trip,
+  settlementCurrency: CurrencyCode,
+): readonly CurrencyCode[] {
+  const availableCurrencies = new Set(
+    trip.exchangeRates.map((rate) => rate.currency),
+  );
+  const requiredCurrencies = new Set<CurrencyCode>();
+
+  trip.payments.forEach((payment) => {
+    if (payment.currency === settlementCurrency) {
+      return;
+    }
+
+    if (payment.currency !== "JPY") {
+      requiredCurrencies.add(payment.currency);
+    }
+
+    if (settlementCurrency !== "JPY") {
+      requiredCurrencies.add(settlementCurrency);
+    }
+  });
+
+  return [...requiredCurrencies].filter(
+    (currency) => !availableCurrencies.has(currency),
+  );
+}
+
+function findRateFraction(
+  trip: Trip,
+  currency: CurrencyCode,
+): Fraction | null {
+  if (currency === "JPY") {
+    return { numerator: ONE, denominator: ONE };
   }
 
-  const localMinorUnitFactor = BigInt(
-    10 ** getCurrencyFractionDigits(trip.localCurrency),
+  const exchangeRate = trip.exchangeRates.find(
+    (rate) => rate.currency === currency,
   );
 
-  if (payment.currency === trip.localCurrency && settlementCurrency === "JPY") {
-    return reduceFraction({
-      numerator: paymentAmount * rate.numerator,
-      denominator: localMinorUnitFactor * rate.denominator,
-    });
-  }
-
-  if (payment.currency === "JPY" && settlementCurrency === trip.localCurrency) {
-    return reduceFraction({
-      numerator: paymentAmount * localMinorUnitFactor * rate.denominator,
-      denominator: rate.numerator,
-    });
-  }
-
-  return null;
+  return exchangeRate === undefined
+    ? null
+    : exchangeRateToFraction(exchangeRate.jpyPerCurrency);
 }
 
 function roundFractionHalfUp(value: Fraction): bigint {

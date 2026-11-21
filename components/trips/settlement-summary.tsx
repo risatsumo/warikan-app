@@ -85,7 +85,7 @@ export function SettlementSummary({
           role="alert"
           className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-5 text-sm leading-6 text-amber-900"
         >
-          {calculation.error}
+          {calculation.error}「旅行設定を編集」から設定してください。
         </div>
       ) : trip.payments.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center">

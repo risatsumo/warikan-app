@@ -33,7 +33,7 @@ export type SaveAppDataResult =
   | { readonly ok: false; readonly error: StorageError };
 
 export function createEmptyAppData(): AppData {
-  return { version: 2, trips: [] };
+  return { version: 3, trips: [] };
 }
 
 export function loadAppData(storage: StorageAdapter): LoadAppDataResult {
@@ -118,12 +118,44 @@ function parseAppData(value: unknown): AppData | null {
     return null;
   }
 
-  if (value.version === 2 && value.trips.every(isTrip)) {
+  if (value.version === 3 && value.trips.every(isTrip)) {
     const appData = value as unknown as AppData;
 
     return hasUniqueStrings(appData.trips.map((trip) => trip.id))
       ? appData
       : null;
+  }
+
+  if (value.version === 2 && value.trips.every(isVersion2Trip)) {
+    const version2Trips = value.trips as Version2Trip[];
+
+    if (!hasUniqueStrings(version2Trips.map((trip) => trip.id))) {
+      return null;
+    }
+
+    return {
+      version: 3,
+      trips: version2Trips.map((trip) => ({
+        id: trip.id,
+        name: trip.name,
+        localCurrency: trip.localCurrency,
+        settlementCurrency: trip.settlementCurrency,
+        exchangeRates:
+          trip.exchangeRate === null
+            ? []
+            : [
+                {
+                  currency: trip.localCurrency,
+                  jpyPerCurrency: trip.exchangeRate.jpyPerLocalCurrency,
+                  source: trip.exchangeRate.source,
+                  rateDate: trip.exchangeRate.rateDate,
+                  updatedAt: trip.exchangeRate.updatedAt,
+                },
+              ],
+        members: trip.members,
+        payments: trip.payments,
+      })),
+    };
   }
 
   if (value.version === 1 && value.trips.every(isLegacyTrip)) {
@@ -134,12 +166,12 @@ function parseAppData(value: unknown): AppData | null {
     }
 
     return {
-      version: 2,
+      version: 3,
       trips: legacyTrips.map((trip) => ({
         ...trip,
         localCurrency: "JPY",
         settlementCurrency: "JPY",
-        exchangeRate: null,
+        exchangeRates: [],
       })),
     };
   }
@@ -148,7 +180,7 @@ function parseAppData(value: unknown): AppData | null {
 }
 
 function isAppData(value: unknown): value is AppData {
-  if (!isRecord(value) || value.version !== 2 || !Array.isArray(value.trips)) {
+  if (!isRecord(value) || value.version !== 3 || !Array.isArray(value.trips)) {
     return false;
   }
 
@@ -168,7 +200,8 @@ function isTrip(value: unknown): value is Trip {
     !isSupportedCurrencyCode(value.settlementCurrency) ||
     (value.settlementCurrency !== "JPY" &&
       value.settlementCurrency !== value.localCurrency) ||
-    !isExchangeRateForTrip(value.exchangeRate, value.localCurrency) ||
+    !Array.isArray(value.exchangeRates) ||
+    !value.exchangeRates.every(isExchangeRate) ||
     !Array.isArray(value.members) ||
     !Array.isArray(value.payments) ||
     value.members.length < 2 ||
@@ -185,12 +218,17 @@ function isTrip(value: unknown): value is Trip {
   }
 
   const memberIdSet = new Set(memberIds);
-  const localCurrency = value.localCurrency;
 
   if (
-    !value.payments.every((payment) =>
-      isPayment(payment, memberIdSet, localCurrency),
+    !hasUniqueStrings(
+      value.exchangeRates.map((exchangeRate) => exchangeRate.currency),
     )
+  ) {
+    return false;
+  }
+
+  if (
+    !value.payments.every((payment) => isPayment(payment, memberIdSet))
   ) {
     return false;
   }
@@ -209,7 +247,6 @@ function isMember(value: unknown): value is Member {
 function isPayment(
   value: unknown,
   memberIds: ReadonlySet<string>,
-  localCurrency: Trip["localCurrency"],
 ): value is Payment {
   if (
     !isRecord(value) ||
@@ -219,7 +256,7 @@ function isPayment(
     typeof value.amountMinor !== "number" ||
     !Number.isSafeInteger(value.amountMinor) ||
     value.amountMinor <= 0 ||
-    (value.currency !== "JPY" && value.currency !== localCurrency) ||
+    !isSupportedCurrencyCode(value.currency) ||
     !isNonEmptyString(value.description) ||
     !Array.isArray(value.splitAmongMemberIds) ||
     value.splitAmongMemberIds.length === 0 ||
@@ -231,6 +268,88 @@ function isPayment(
   }
 
   return hasUniqueStrings(value.splitAmongMemberIds);
+}
+
+interface Version2ExchangeRate {
+  readonly jpyPerLocalCurrency: string;
+  readonly source: ExchangeRate["source"];
+  readonly rateDate: string | null;
+  readonly updatedAt: string;
+}
+
+interface Version2Trip {
+  readonly id: string;
+  readonly name: string;
+  readonly localCurrency: Trip["localCurrency"];
+  readonly settlementCurrency: Trip["settlementCurrency"];
+  readonly exchangeRate: Version2ExchangeRate | null;
+  readonly members: readonly Member[];
+  readonly payments: readonly Payment[];
+}
+
+function isVersion2Trip(value: unknown): value is Version2Trip {
+  if (
+    !isRecord(value) ||
+    !isNonEmptyString(value.id) ||
+    !isNonEmptyString(value.name) ||
+    !isSupportedCurrencyCode(value.localCurrency) ||
+    !isSupportedCurrencyCode(value.settlementCurrency) ||
+    (value.settlementCurrency !== "JPY" &&
+      value.settlementCurrency !== value.localCurrency) ||
+    !isVersion2ExchangeRate(value.exchangeRate, value.localCurrency) ||
+    !Array.isArray(value.members) ||
+    !Array.isArray(value.payments) ||
+    value.members.length < 2 ||
+    !value.members.every(isMember)
+  ) {
+    return false;
+  }
+
+  const memberIds = value.members.map((member) => member.id);
+  const memberNames = value.members.map((member) => member.name);
+
+  if (!hasUniqueStrings(memberIds) || !hasUniqueStrings(memberNames)) {
+    return false;
+  }
+
+  const memberIdSet = new Set(memberIds);
+
+  return (
+    value.payments.every(
+      (payment) =>
+        isPayment(payment, memberIdSet) &&
+        (payment.currency === "JPY" ||
+          payment.currency === value.localCurrency),
+    ) && hasUniqueStrings(value.payments.map((payment) => payment.id))
+  );
+}
+
+function isVersion2ExchangeRate(
+  value: unknown,
+  localCurrency: Trip["localCurrency"],
+): value is Version2ExchangeRate | null {
+  if (localCurrency === "JPY") {
+    return value === null;
+  }
+
+  if (
+    value === null ||
+    !isRecord(value) ||
+    (value.source !== "frankfurter" && value.source !== "manual") ||
+    (value.rateDate !== null && typeof value.rateDate !== "string") ||
+    typeof value.jpyPerLocalCurrency !== "string" ||
+    typeof value.updatedAt !== "string"
+  ) {
+    return value === null;
+  }
+
+  return createExchangeRate({
+    currency: localCurrency,
+    jpyPerCurrency: value.jpyPerLocalCurrency,
+    source: value.source,
+    rateDate: value.rateDate,
+    updatedAt: value.updatedAt,
+  }) !== null;
 }
 
 interface LegacyTrip {
@@ -263,33 +382,29 @@ function isLegacyTrip(value: unknown): value is LegacyTrip {
   const memberIdSet = new Set(memberIds);
 
   return (
-    value.payments.every((payment) =>
-      isPayment(payment, memberIdSet, "JPY"),
+    value.payments.every(
+      (payment) =>
+        isPayment(payment, memberIdSet) && payment.currency === "JPY",
     ) && hasUniqueStrings(value.payments.map((payment) => payment.id))
   );
 }
 
-function isExchangeRateForTrip(
-  value: unknown,
-  localCurrency: Trip["localCurrency"],
-): value is ExchangeRate | null {
-  if (localCurrency === "JPY") {
-    return value === null;
-  }
-
+function isExchangeRate(value: unknown): value is ExchangeRate {
   if (
-    value === null ||
     !isRecord(value) ||
+    !isSupportedCurrencyCode(value.currency) ||
+    value.currency === "JPY" ||
     (value.source !== "frankfurter" && value.source !== "manual") ||
     (value.rateDate !== null && typeof value.rateDate !== "string") ||
-    typeof value.jpyPerLocalCurrency !== "string" ||
+    typeof value.jpyPerCurrency !== "string" ||
     typeof value.updatedAt !== "string"
   ) {
-    return value === null;
+    return false;
   }
 
   return createExchangeRate({
-    jpyPerLocalCurrency: value.jpyPerLocalCurrency,
+    currency: value.currency,
+    jpyPerCurrency: value.jpyPerCurrency,
     source: value.source,
     rateDate: value.rateDate,
     updatedAt: value.updatedAt,

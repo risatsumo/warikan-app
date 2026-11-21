@@ -7,7 +7,7 @@ export interface RateFraction {
 
 export interface FrankfurterRate {
   readonly localCurrency: CurrencyCode;
-  readonly jpyPerLocalCurrency: string;
+  readonly jpyPerCurrency: string;
   readonly rateDate: string;
 }
 
@@ -52,17 +52,19 @@ export function exchangeRateToFraction(value: string): RateFraction | null {
 }
 
 export function createExchangeRate(input: {
-  readonly jpyPerLocalCurrency: string;
+  readonly currency: CurrencyCode;
+  readonly jpyPerCurrency: string;
   readonly source: ExchangeRate["source"];
   readonly rateDate: string | null;
   readonly updatedAt: string;
 }): ExchangeRate | null {
   const normalizedRate = normalizePositiveExchangeRate(
-    input.jpyPerLocalCurrency,
+    input.jpyPerCurrency,
   );
 
   if (
     normalizedRate === null ||
+    input.currency === "JPY" ||
     !isValidDateTime(input.updatedAt) ||
     (input.rateDate !== null && !/^\d{4}-\d{2}-\d{2}$/.test(input.rateDate))
   ) {
@@ -70,7 +72,8 @@ export function createExchangeRate(input: {
   }
 
   return {
-    jpyPerLocalCurrency: normalizedRate,
+    currency: input.currency,
+    jpyPerCurrency: normalizedRate,
     source: input.source,
     rateDate: input.rateDate,
     updatedAt: input.updatedAt,
@@ -100,7 +103,7 @@ export function parseFrankfurterRateResponse(
     ? null
     : {
         localCurrency: expectedLocalCurrency,
-        jpyPerLocalCurrency: normalizedRate,
+        jpyPerCurrency: normalizedRate,
         rateDate: value.date,
       };
 }

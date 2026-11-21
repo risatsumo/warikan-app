@@ -4,34 +4,32 @@ import {
   createExchangeRate,
   normalizePositiveExchangeRate,
 } from "@/lib/exchange-rates";
-import type { ExchangeRate, Trip } from "@/types/domain";
+import type { CurrencyCode, ExchangeRate } from "@/types/domain";
 
 interface CurrencySettingsProps {
-  readonly trip: Trip;
+  readonly currency: CurrencyCode;
+  readonly exchangeRate: ExchangeRate | null;
   readonly onSaveExchangeRate: (exchangeRate: ExchangeRate) => string | null;
 }
 
 interface ExchangeRateApiResponse {
   readonly localCurrency: string;
-  readonly jpyPerLocalCurrency: string;
+  readonly jpyPerCurrency: string;
   readonly rateDate: string;
   readonly retrievedAt: string;
 }
 
 export function CurrencySettings({
-  trip,
+  currency,
+  exchangeRate,
   onSaveExchangeRate,
 }: CurrencySettingsProps) {
   const [manualRate, setManualRate] = useState(
-    trip.exchangeRate?.jpyPerLocalCurrency ?? "",
+    exchangeRate?.jpyPerCurrency ?? "",
   );
   const [isFetching, setIsFetching] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  if (trip.localCurrency === "JPY") {
-    return null;
-  }
 
   function saveRate(exchangeRate: ExchangeRate, successMessage: string) {
     const saveError = onSaveExchangeRate(exchangeRate);
@@ -42,7 +40,7 @@ export function CurrencySettings({
       return;
     }
 
-    setManualRate(exchangeRate.jpyPerLocalCurrency);
+    setManualRate(exchangeRate.jpyPerCurrency);
     setError(null);
     setMessage(successMessage);
   }
@@ -54,7 +52,7 @@ export function CurrencySettings({
 
     try {
       const response = await fetch(
-        `/api/exchange-rate?currency=${encodeURIComponent(trip.localCurrency)}`,
+        `/api/exchange-rate?currency=${encodeURIComponent(currency)}`,
         { cache: "no-store" },
       );
       const data: unknown = await response.json();
@@ -68,7 +66,8 @@ export function CurrencySettings({
       }
 
       const exchangeRate = createExchangeRate({
-        jpyPerLocalCurrency: data.jpyPerLocalCurrency,
+        currency,
+        jpyPerCurrency: data.jpyPerCurrency,
         source: "frankfurter",
         rateDate: data.rateDate,
         updatedAt: data.retrievedAt,
@@ -101,7 +100,8 @@ export function CurrencySettings({
     }
 
     const exchangeRate = createExchangeRate({
-      jpyPerLocalCurrency: normalizedRate,
+      currency,
+      jpyPerCurrency: normalizedRate,
       source: "manual",
       rateDate: null,
       updatedAt: new Date().toISOString(),
@@ -124,7 +124,7 @@ export function CurrencySettings({
           </p>
           <h2 className="mt-2 text-xl font-bold text-slate-950">為替レート</h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            1 {trip.localCurrency} を何円として精算するかを旅行に保存します。
+            1 {currency} を何円として精算するかを旅行に保存します。
           </p>
         </div>
         <button
@@ -138,18 +138,18 @@ export function CurrencySettings({
       </div>
 
       <div className="mt-5 rounded-2xl border border-indigo-100 bg-white px-4 py-4">
-        {trip.exchangeRate === null ? (
+        {exchangeRate === null ? (
           <p className="text-sm font-semibold text-amber-800">
             為替レートが未設定です。API取得または手入力をしてください。
           </p>
         ) : (
           <>
             <p className="text-lg font-bold text-slate-950">
-              1 {trip.localCurrency} = {trip.exchangeRate.jpyPerLocalCurrency} 円
+              1 {currency} = {exchangeRate.jpyPerCurrency} 円
             </p>
             <p className="mt-1 text-xs leading-5 text-slate-500">
-              {trip.exchangeRate.source === "frankfurter"
-                ? `Frankfurter参照レート（${trip.exchangeRate.rateDate}）`
+              {exchangeRate.source === "frankfurter"
+                ? `Frankfurter参照レート（${exchangeRate.rateDate}）`
                 : "手入力レート"}
             </p>
           </>
@@ -158,7 +158,7 @@ export function CurrencySettings({
 
       <form className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={handleManualSubmit}>
         <label className="min-w-0 flex-1 text-sm font-semibold text-slate-800" htmlFor="manual-exchange-rate">
-          手入力する場合（1 {trip.localCurrency} あたりの円）
+          手入力する場合（1 {currency} あたりの円）
           <input
             id="manual-exchange-rate"
             value={manualRate}
@@ -196,7 +196,7 @@ function isExchangeRateApiResponse(value: unknown): value is ExchangeRateApiResp
   return (
     isRecord(value) &&
     typeof value.localCurrency === "string" &&
-    typeof value.jpyPerLocalCurrency === "string" &&
+    typeof value.jpyPerCurrency === "string" &&
     typeof value.rateDate === "string" &&
     typeof value.retrievedAt === "string"
   );
