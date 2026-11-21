@@ -82,6 +82,7 @@ export function TripList({
                   <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500">
                     <span>{trip.members.length}人</span>
                     <span>{trip.payments.length}件の支払い</span>
+                    <span>現地通貨 {trip.localCurrency}</span>
                   </div>
                   <span className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-sky-700 transition group-hover:text-sky-900">
                     旅行を開く

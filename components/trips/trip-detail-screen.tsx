@@ -9,10 +9,20 @@ import {
   addMemberToTrip,
   findTripById,
   removeMemberFromTrip,
+  updateTripExchangeRate,
+  updateTripSettlementCurrency,
 } from "@/lib/trips";
-import type { AppData, Member, Payment, Trip } from "@/types/domain";
+import type {
+  AppData,
+  CurrencyCode,
+  ExchangeRate,
+  Member,
+  Payment,
+  Trip,
+} from "@/types/domain";
 
 import { ConfirmDialog } from "../ui/confirm-dialog";
+import { CurrencySettings } from "./currency-settings";
 import { MemberList } from "./member-list";
 import { PaymentList } from "./payment-list";
 import { SettlementSummary } from "./settlement-summary";
@@ -99,6 +109,66 @@ export function TripDetailScreen({ tripId }: TripDetailScreenProps) {
     }
 
     const result = addPaymentToTrip(loadState.appData, tripId, payment);
+
+    if (!result.ok) {
+      return result.error;
+    }
+
+    const saveResult = saveAppData(window.localStorage, result.data);
+
+    if (!saveResult.ok) {
+      return saveResult.error.message;
+    }
+
+    setLoadState({
+      status: "ready",
+      appData: result.data,
+      trip: result.trip,
+    });
+    return null;
+  }
+
+  function handleSaveExchangeRate(exchangeRate: ExchangeRate): string | null {
+    if (loadState.status !== "ready") {
+      return "旅行データの読み込みが終わってから、もう一度お試しください。";
+    }
+
+    const result = updateTripExchangeRate(
+      loadState.appData,
+      tripId,
+      exchangeRate,
+    );
+
+    if (!result.ok) {
+      return result.error;
+    }
+
+    const saveResult = saveAppData(window.localStorage, result.data);
+
+    if (!saveResult.ok) {
+      return saveResult.error.message;
+    }
+
+    setLoadState({
+      status: "ready",
+      appData: result.data,
+      trip: result.trip,
+    });
+    return null;
+  }
+
+  function handleChangeSettlementCurrency(
+    currency: CurrencyCode,
+  ): string | null {
+    if (loadState.status !== "ready") {
+      return "旅行データの読み込みが終わってから、もう一度お試しください。";
+    }
+
+    const result = updateTripSettlementCurrency(
+      loadState.appData,
+      tripId,
+      currency,
+    );
 
     if (!result.ok) {
       return result.error;
@@ -261,6 +331,8 @@ export function TripDetailScreen({ tripId }: TripDetailScreenProps) {
             trip={loadState.trip}
             onAddMember={handleAddMember}
             onAddPayment={handleAddPayment}
+            onSaveExchangeRate={handleSaveExchangeRate}
+            onChangeSettlementCurrency={handleChangeSettlementCurrency}
             memberDeleteError={memberDeleteRequestError}
             onRequestDeleteMember={handleRequestDeleteMember}
             onRequestDeletePayment={handleRequestDeletePayment}
@@ -352,6 +424,12 @@ interface TripDetailsProps {
   readonly trip: Trip;
   readonly onAddMember: (memberName: string) => string | null;
   readonly onAddPayment: (payment: Payment) => string | null;
+  readonly onSaveExchangeRate: (
+    exchangeRate: ExchangeRate,
+  ) => string | null;
+  readonly onChangeSettlementCurrency: (
+    currency: CurrencyCode,
+  ) => string | null;
   readonly memberDeleteError: string | null;
   readonly onRequestDeleteMember: (member: Member) => void;
   readonly onRequestDeletePayment: (payment: Payment) => void;
@@ -361,6 +439,8 @@ function TripDetails({
   trip,
   onAddMember,
   onAddPayment,
+  onSaveExchangeRate,
+  onChangeSettlementCurrency,
   memberDeleteError,
   onRequestDeleteMember,
   onRequestDeletePayment,
@@ -381,10 +461,22 @@ function TripDetails({
           <span className="rounded-full bg-amber-50 px-3 py-1.5 text-amber-700">
             支払い {trip.payments.length}件
           </span>
+          <span className="rounded-full bg-indigo-50 px-3 py-1.5 text-indigo-700">
+            現地通貨 {trip.localCurrency}
+          </span>
         </div>
       </header>
 
-      <SettlementSummary trip={trip} />
+      <CurrencySettings
+        key={trip.id}
+        trip={trip}
+        onSaveExchangeRate={onSaveExchangeRate}
+      />
+
+      <SettlementSummary
+        trip={trip}
+        onChangeSettlementCurrency={onChangeSettlementCurrency}
+      />
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(18rem,0.78fr)_minmax(0,1.22fr)]">
         <MemberList
@@ -395,6 +487,7 @@ function TripDetails({
         />
         <PaymentList
           members={trip.members}
+          localCurrency={trip.localCurrency}
           payments={trip.payments}
           onAddPayment={onAddPayment}
           onRequestDeletePayment={onRequestDeletePayment}

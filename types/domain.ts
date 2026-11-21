@@ -1,12 +1,19 @@
-/**
- * 国内旅行で最初に対応する通貨。
- * 複数通貨機能を実装するときに、対応する通貨コードを追加する。
- */
-export type CurrencyCode = "JPY";
+/** アプリで入力・精算できる通貨。 */
+export type CurrencyCode =
+  | "JPY"
+  | "USD"
+  | "EUR"
+  | "GBP"
+  | "KRW"
+  | "CNY"
+  | "TWD"
+  | "THB"
+  | "SGD"
+  | "AUD";
 
 /** localStorage に保存するアプリ全体のデータ。 */
 export interface AppData {
-  readonly version: 1;
+  readonly version: 2;
   readonly trips: readonly Trip[];
 }
 
@@ -14,8 +21,19 @@ export interface AppData {
 export interface Trip {
   readonly id: string;
   readonly name: string;
+  readonly localCurrency: CurrencyCode;
+  readonly settlementCurrency: CurrencyCode;
+  readonly exchangeRate: ExchangeRate | null;
   readonly members: readonly Member[];
   readonly payments: readonly Payment[];
+}
+
+/** 1現地通貨を何円として換算するかを表す。 */
+export interface ExchangeRate {
+  readonly jpyPerLocalCurrency: string;
+  readonly source: "frankfurter" | "manual";
+  readonly rateDate: string | null;
+  readonly updatedAt: string;
 }
 
 /** 旅行に参加する1人のメンバー。 */

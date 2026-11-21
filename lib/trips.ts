@@ -1,14 +1,24 @@
-import type { AppData, Member, Trip } from "../types/domain";
+import { isSupportedCurrencyCode } from "./currencies.ts";
+import { createExchangeRate } from "./exchange-rates.ts";
+import type {
+  AppData,
+  CurrencyCode,
+  ExchangeRate,
+  Member,
+  Trip,
+} from "../types/domain";
 
 const MINIMUM_MEMBER_COUNT = 2;
 
 export interface CreateTripInput {
   readonly name: string;
+  readonly localCurrency: CurrencyCode;
   readonly memberNames: readonly string[];
 }
 
 export interface CreateTripValidationErrors {
   readonly tripName: string | null;
+  readonly localCurrency: string | null;
   readonly memberCount: string | null;
   readonly memberNames: readonly (string | null)[];
 }
@@ -32,6 +42,10 @@ export type RemoveMemberResult =
       readonly data: AppData;
       readonly trip: Trip;
     }
+  | { readonly ok: false; readonly error: string };
+
+export type UpdateTripResult =
+  | { readonly ok: true; readonly data: AppData; readonly trip: Trip }
   | { readonly ok: false; readonly error: string };
 
 type CreateId = () => string;
@@ -67,6 +81,9 @@ export function validateCreateTripInput(
 
   return {
     tripName: input.name.trim() === "" ? "旅行名を入力してください。" : null,
+    localCurrency: isSupportedCurrencyCode(input.localCurrency)
+      ? null
+      : "現地通貨を選択してください。",
     memberCount:
       enteredMemberCount < MINIMUM_MEMBER_COUNT
         ? "メンバーを2人以上入力してください。"
@@ -82,6 +99,7 @@ export function createTrip(
   const errors = validateCreateTripInput(input);
   const hasErrors =
     errors.tripName !== null ||
+    errors.localCurrency !== null ||
     errors.memberCount !== null ||
     errors.memberNames.some((error) => error !== null);
 
@@ -94,12 +112,79 @@ export function createTrip(
     trip: {
       id: createId(),
       name: input.name.trim(),
+      localCurrency: input.localCurrency,
+      settlementCurrency: "JPY",
+      exchangeRate: null,
       members: input.memberNames.map((name) => ({
         id: createId(),
         name: name.trim(),
       })),
       payments: [],
     },
+  };
+}
+
+export function updateTripSettlementCurrency(
+  appData: AppData,
+  tripId: string,
+  settlementCurrency: CurrencyCode,
+): UpdateTripResult {
+  const trip = findTripById(appData, tripId);
+
+  if (trip === null) {
+    return { ok: false, error: "旅行が見つかりません。" };
+  }
+
+  if (
+    settlementCurrency !== "JPY" &&
+    settlementCurrency !== trip.localCurrency
+  ) {
+    return { ok: false, error: "この旅行で使えない精算通貨です。" };
+  }
+
+  return replaceTrip(appData, {
+    ...trip,
+    settlementCurrency,
+  });
+}
+
+export function updateTripExchangeRate(
+  appData: AppData,
+  tripId: string,
+  exchangeRate: ExchangeRate,
+): UpdateTripResult {
+  const trip = findTripById(appData, tripId);
+
+  if (trip === null) {
+    return { ok: false, error: "旅行が見つかりません。" };
+  }
+
+  if (trip.localCurrency === "JPY") {
+    return { ok: false, error: "日本円の旅行に為替レートは必要ありません。" };
+  }
+
+  const validatedRate = createExchangeRate(exchangeRate);
+
+  if (validatedRate === null) {
+    return { ok: false, error: "為替レートの形式が正しくありません。" };
+  }
+
+  return replaceTrip(appData, {
+    ...trip,
+    exchangeRate: validatedRate,
+  });
+}
+
+function replaceTrip(appData: AppData, trip: Trip): UpdateTripResult {
+  return {
+    ok: true,
+    data: {
+      ...appData,
+      trips: appData.trips.map((currentTrip) =>
+        currentTrip.id === trip.id ? trip : currentTrip,
+      ),
+    },
+    trip,
   };
 }
 

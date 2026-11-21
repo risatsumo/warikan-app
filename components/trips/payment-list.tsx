@@ -1,18 +1,19 @@
-import type { Member, Payment } from "@/types/domain";
+import { formatMoney } from "@/lib/currencies";
+import type { CurrencyCode, Member, Payment } from "@/types/domain";
 
 import { PaymentForm } from "./payment-form";
 
 interface PaymentListProps {
   readonly members: readonly Member[];
+  readonly localCurrency: CurrencyCode;
   readonly payments: readonly Payment[];
   readonly onAddPayment: (payment: Payment) => string | null;
   readonly onRequestDeletePayment: (payment: Payment) => void;
 }
 
-const yenFormatter = new Intl.NumberFormat("ja-JP");
-
 export function PaymentList({
   members,
+  localCurrency,
   payments,
   onAddPayment,
   onRequestDeletePayment,
@@ -43,7 +44,11 @@ export function PaymentList({
         </span>
       </div>
 
-      <PaymentForm members={members} onAddPayment={onAddPayment} />
+      <PaymentForm
+        members={members}
+        localCurrency={localCurrency}
+        onAddPayment={onAddPayment}
+      />
 
       <div className="mt-8 border-t border-slate-200 pt-6">
         {payments.length === 0 ? (
@@ -73,7 +78,7 @@ export function PaymentList({
                     {payment.description}
                   </p>
                   <p className="shrink-0 font-bold text-slate-950">
-                    {yenFormatter.format(payment.amountMinor)}円
+                    {formatMoney(payment.amountMinor, payment.currency)}
                   </p>
                 </div>
                 <p className="mt-2 break-words text-sm leading-6 text-slate-600">

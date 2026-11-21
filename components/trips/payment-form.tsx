@@ -4,16 +4,26 @@ import {
   createPayment,
   type PaymentValidationErrors,
 } from "@/lib/payments";
-import type { Member, Payment } from "@/types/domain";
+import {
+  getCurrencyFractionDigits,
+  getCurrencyInputStep,
+} from "@/lib/currencies";
+import type { CurrencyCode, Member, Payment } from "@/types/domain";
 
 interface PaymentFormProps {
   readonly members: readonly Member[];
+  readonly localCurrency: CurrencyCode;
   readonly onAddPayment: (payment: Payment) => string | null;
 }
 
-export function PaymentForm({ members, onAddPayment }: PaymentFormProps) {
+export function PaymentForm({
+  members,
+  localCurrency,
+  onAddPayment,
+}: PaymentFormProps) {
   const [payerId, setPayerId] = useState(members[0]?.id ?? "");
-  const [amountYen, setAmountYen] = useState("");
+  const [currency, setCurrency] = useState<CurrencyCode>(localCurrency);
+  const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [excludedMemberIds, setExcludedMemberIds] = useState<readonly string[]>(
     [],
@@ -29,6 +39,8 @@ export function PaymentForm({ members, onAddPayment }: PaymentFormProps) {
   const effectivePayerId = members.some((member) => member.id === payerId)
     ? payerId
     : (members[0]?.id ?? "");
+  const paymentCurrencies: readonly CurrencyCode[] =
+    localCurrency === "JPY" ? ["JPY"] : [localCurrency, "JPY"];
 
   function clearMessages() {
     setErrors(null);
@@ -44,11 +56,13 @@ export function PaymentForm({ members, onAddPayment }: PaymentFormProps) {
     const result = createPayment(
       {
         payerId: effectivePayerId,
-        amountYen,
+        amount,
+        currency,
         description,
         splitAmongMemberIds: selectedMemberIds,
       },
       members,
+      localCurrency,
     );
 
     if (!result.ok) {
@@ -64,7 +78,8 @@ export function PaymentForm({ members, onAddPayment }: PaymentFormProps) {
     }
 
     setPayerId(members[0]?.id ?? "");
-    setAmountYen("");
+    setCurrency(localCurrency);
+    setAmount("");
     setDescription("");
     setExcludedMemberIds([]);
     setErrors(null);
@@ -94,7 +109,7 @@ export function PaymentForm({ members, onAddPayment }: PaymentFormProps) {
         誰が立て替え、誰が費用を負担するかを入力してください。
       </p>
 
-      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+      <div className="mt-5 grid gap-4 sm:grid-cols-3">
         <div>
           <label
             htmlFor="payment-payer"
@@ -136,38 +151,81 @@ export function PaymentForm({ members, onAddPayment }: PaymentFormProps) {
 
         <div>
           <label
+            htmlFor="payment-currency"
+            className="text-sm font-semibold text-slate-800"
+          >
+            支払い通貨
+            <span className="ml-2 text-xs font-medium text-red-600">必須</span>
+          </label>
+          <select
+            id="payment-currency"
+            value={currency}
+            aria-describedby={
+              errors?.currency ? "payment-currency-error" : undefined
+            }
+            aria-invalid={Boolean(errors?.currency)}
+            className={`${inputClassName} ${
+              errors?.currency
+                ? "border-red-400 focus:border-red-500 focus:ring-red-100"
+                : "border-slate-300 focus:border-amber-500 focus:ring-amber-100"
+            }`}
+            onChange={(event) => {
+              setCurrency(event.target.value as CurrencyCode);
+              setAmount("");
+              clearMessages();
+            }}
+          >
+            {paymentCurrencies.map((currencyCode) => (
+              <option key={currencyCode} value={currencyCode}>
+                {currencyCode}
+              </option>
+            ))}
+          </select>
+          {errors?.currency && (
+            <p id="payment-currency-error" className="mt-2 text-sm text-red-700">
+              {errors.currency}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label
             htmlFor="payment-amount"
             className="text-sm font-semibold text-slate-800"
           >
-            金額（円）
+            金額（{currency}）
             <span className="ml-2 text-xs font-medium text-red-600">必須</span>
           </label>
           <input
             id="payment-amount"
-            value={amountYen}
+            value={amount}
             required
-            inputMode="numeric"
-            min="1"
-            step="1"
-            aria-describedby={
-              errors?.amountYen ? "payment-amount-error" : undefined
+            inputMode={
+              getCurrencyFractionDigits(currency) === 0 ? "numeric" : "decimal"
             }
-            aria-invalid={errors?.amountYen !== null && errors !== null}
+            min={getCurrencyInputStep(currency)}
+            step={getCurrencyInputStep(currency)}
+            aria-describedby={
+              errors?.amount ? "payment-amount-error" : undefined
+            }
+            aria-invalid={errors?.amount !== null && errors !== null}
             className={`${inputClassName} ${
-              errors?.amountYen
+              errors?.amount
                 ? "border-red-400 focus:border-red-500 focus:ring-red-100"
                 : "border-slate-300 focus:border-amber-500 focus:ring-amber-100"
             }`}
-            placeholder="例：1200"
+            placeholder={
+              getCurrencyFractionDigits(currency) === 0 ? "例：1200" : "例：12.50"
+            }
             type="number"
             onChange={(event) => {
-              setAmountYen(event.target.value);
+              setAmount(event.target.value);
               clearMessages();
             }}
           />
-          {errors?.amountYen && (
+          {errors?.amount && (
             <p id="payment-amount-error" className="mt-2 text-sm text-red-700">
-              {errors.amountYen}
+              {errors.amount}
             </p>
           )}
         </div>

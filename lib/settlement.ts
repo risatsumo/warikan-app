@@ -1,4 +1,6 @@
-import type { Trip } from "../types/domain";
+import { getCurrencyFractionDigits } from "./currencies.ts";
+import { exchangeRateToFraction } from "./exchange-rates.ts";
+import type { CurrencyCode, Payment, Trip } from "../types/domain";
 
 export interface MemberSettlement {
   readonly memberId: string;
@@ -17,10 +19,19 @@ export interface Transfer {
 }
 
 export interface SettlementResult {
+  readonly currency: CurrencyCode;
   readonly totalExpense: bigint;
   readonly members: readonly MemberSettlement[];
   readonly transfers: readonly Transfer[];
 }
+
+export type SettlementCalculationResult =
+  | { readonly ok: true; readonly settlement: SettlementResult }
+  | {
+      readonly ok: false;
+      readonly code: "missing-exchange-rate" | "invalid-settlement-currency";
+      readonly error: string;
+    };
 
 interface Fraction {
   readonly numerator: bigint;
@@ -45,9 +56,26 @@ interface WorkingTransferMember {
 const ZERO = BigInt(0);
 const ONE = BigInt(1);
 
-export function calculateSettlement(trip: Trip): SettlementResult {
-  const paidAmountByMemberId = new Map(
-    trip.members.map((member) => [member.id, ZERO]),
+export function calculateSettlement(
+  trip: Trip,
+  settlementCurrency: CurrencyCode = trip.settlementCurrency,
+): SettlementCalculationResult {
+  if (
+    settlementCurrency !== "JPY" &&
+    settlementCurrency !== trip.localCurrency
+  ) {
+    return {
+      ok: false,
+      code: "invalid-settlement-currency",
+      error: "この旅行で使えない精算通貨です。",
+    };
+  }
+
+  const paidFractionByMemberId = new Map<string, Fraction>(
+    trip.members.map((member) => [
+      member.id,
+      { numerator: ZERO, denominator: ONE },
+    ]),
   );
   const burdenFractionByMemberId = new Map<string, Fraction>(
     trip.members.map((member) => [
@@ -55,20 +83,44 @@ export function calculateSettlement(trip: Trip): SettlementResult {
       { numerator: ZERO, denominator: ONE },
     ]),
   );
-  let totalExpense = ZERO;
+  let totalExpenseFraction: Fraction = {
+    numerator: ZERO,
+    denominator: ONE,
+  };
 
-  trip.payments.forEach((payment) => {
-    const paymentAmount = BigInt(payment.amountMinor);
-    const currentPaidAmount = paidAmountByMemberId.get(payment.payerId) ?? ZERO;
-    paidAmountByMemberId.set(
-      payment.payerId,
-      currentPaidAmount + paymentAmount,
+  for (const payment of trip.payments) {
+    const convertedPayment = convertPaymentAmount(
+      payment,
+      settlementCurrency,
+      trip,
     );
-    totalExpense += paymentAmount;
+
+    if (convertedPayment === null) {
+      return {
+        ok: false,
+        code: "missing-exchange-rate",
+        error: `JPYと${trip.localCurrency}を換算する為替レートを設定してください。`,
+      };
+    }
+
+    const currentPaidAmount = paidFractionByMemberId.get(payment.payerId) ?? {
+      numerator: ZERO,
+      denominator: ONE,
+    };
+    paidFractionByMemberId.set(
+      payment.payerId,
+      addFractions(currentPaidAmount, convertedPayment),
+    );
+    totalExpenseFraction = addFractions(
+      totalExpenseFraction,
+      convertedPayment,
+    );
 
     const paymentShare: Fraction = {
-      numerator: paymentAmount,
-      denominator: BigInt(payment.splitAmongMemberIds.length),
+      numerator: convertedPayment.numerator,
+      denominator:
+        convertedPayment.denominator *
+        BigInt(payment.splitAmongMemberIds.length),
     };
 
     payment.splitAmongMemberIds.forEach((memberId) => {
@@ -81,11 +133,53 @@ export function calculateSettlement(trip: Trip): SettlementResult {
         addFractions(currentBurden, paymentShare),
       );
     });
+  }
+
+  const totalExpense = roundFractionHalfUp(totalExpenseFraction);
+  const paidAmountByMemberId = roundMemberFractions(
+    trip,
+    paidFractionByMemberId,
+    totalExpense,
+  );
+  const burdenAmountByMemberId = roundMemberFractions(
+    trip,
+    burdenFractionByMemberId,
+    totalExpense,
+  );
+
+  const members: MemberSettlement[] = trip.members.map((member) => {
+    const paidAmount = paidAmountByMemberId.get(member.id) ?? ZERO;
+    const burdenAmount = burdenAmountByMemberId.get(member.id) ?? ZERO;
+
+    return {
+      memberId: member.id,
+      memberName: member.name,
+      paidAmount,
+      burdenAmount,
+      balance: paidAmount - burdenAmount,
+    };
   });
+
+  return {
+    ok: true,
+    settlement: {
+      currency: settlementCurrency,
+      totalExpense,
+      members,
+      transfers: calculateTransfers(members),
+    },
+  };
+}
+
+function roundMemberFractions(
+  trip: Trip,
+  amountByMemberId: ReadonlyMap<string, Fraction>,
+  targetTotal: bigint,
+): Map<string, bigint> {
 
   const roundedCandidates: RoundedBurdenCandidate[] = trip.members.map(
     (member, registrationIndex) => {
-      const burden = burdenFractionByMemberId.get(member.id) ?? {
+      const burden = amountByMemberId.get(member.id) ?? {
         numerator: ZERO,
         denominator: ONE,
       };
@@ -103,43 +197,79 @@ export function calculateSettlement(trip: Trip): SettlementResult {
     (total, candidate) => total + candidate.floorAmount,
     ZERO,
   );
-  const remainingYen = Number(totalExpense - floorTotal);
+  const remainingUnits = Number(targetTotal - floorTotal);
 
   roundedCandidates.sort(compareBurdenRemainders);
 
-  const burdenAmountByMemberId = new Map(
+  const roundedAmountByMemberId = new Map(
     roundedCandidates.map((candidate) => [
       candidate.memberId,
       candidate.floorAmount,
     ]),
   );
 
-  for (let index = 0; index < remainingYen; index += 1) {
+  for (let index = 0; index < remainingUnits; index += 1) {
     const candidate = roundedCandidates[index];
-    burdenAmountByMemberId.set(
+    roundedAmountByMemberId.set(
       candidate.memberId,
-      (burdenAmountByMemberId.get(candidate.memberId) ?? ZERO) + ONE,
+      (roundedAmountByMemberId.get(candidate.memberId) ?? ZERO) + ONE,
     );
   }
 
-  const members: MemberSettlement[] = trip.members.map((member) => {
-    const paidAmount = paidAmountByMemberId.get(member.id) ?? ZERO;
-    const burdenAmount = burdenAmountByMemberId.get(member.id) ?? ZERO;
+  return roundedAmountByMemberId;
+}
 
-    return {
-      memberId: member.id,
-      memberName: member.name,
-      paidAmount,
-      burdenAmount,
-      balance: paidAmount - burdenAmount,
-    };
-  });
+function convertPaymentAmount(
+  payment: Payment,
+  settlementCurrency: CurrencyCode,
+  trip: Trip,
+): Fraction | null {
+  const paymentAmount = BigInt(payment.amountMinor);
 
-  return {
-    totalExpense,
-    members,
-    transfers: calculateTransfers(members),
-  };
+  if (payment.currency === settlementCurrency) {
+    return { numerator: paymentAmount, denominator: ONE };
+  }
+
+  if (trip.exchangeRate === null) {
+    return null;
+  }
+
+  const rate = exchangeRateToFraction(
+    trip.exchangeRate.jpyPerLocalCurrency,
+  );
+
+  if (rate === null) {
+    return null;
+  }
+
+  const localMinorUnitFactor = BigInt(
+    10 ** getCurrencyFractionDigits(trip.localCurrency),
+  );
+
+  if (payment.currency === trip.localCurrency && settlementCurrency === "JPY") {
+    return reduceFraction({
+      numerator: paymentAmount * rate.numerator,
+      denominator: localMinorUnitFactor * rate.denominator,
+    });
+  }
+
+  if (payment.currency === "JPY" && settlementCurrency === trip.localCurrency) {
+    return reduceFraction({
+      numerator: paymentAmount * localMinorUnitFactor * rate.denominator,
+      denominator: rate.numerator,
+    });
+  }
+
+  return null;
+}
+
+function roundFractionHalfUp(value: Fraction): bigint {
+  const floorAmount = value.numerator / value.denominator;
+  const remainder = value.numerator % value.denominator;
+
+  return remainder * BigInt(2) >= value.denominator
+    ? floorAmount + ONE
+    : floorAmount;
 }
 
 function addFractions(left: Fraction, right: Fraction): Fraction {
@@ -157,6 +287,18 @@ function addFractions(left: Fraction, right: Fraction): Fraction {
   return {
     numerator: numerator / reductionDivisor,
     denominator: denominator / reductionDivisor,
+  };
+}
+
+function reduceFraction(value: Fraction): Fraction {
+  const reductionDivisor = greatestCommonDivisor(
+    value.numerator,
+    value.denominator,
+  );
+
+  return {
+    numerator: value.numerator / reductionDivisor,
+    denominator: value.denominator / reductionDivisor,
   };
 }
 

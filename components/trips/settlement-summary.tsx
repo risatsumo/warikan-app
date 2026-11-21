@@ -1,15 +1,24 @@
+import { formatMoney } from "@/lib/currencies";
 import { calculateSettlement, type MemberSettlement } from "@/lib/settlement";
-import type { Trip } from "@/types/domain";
+import type { CurrencyCode, Trip } from "@/types/domain";
 
 interface SettlementSummaryProps {
   readonly trip: Trip;
+  readonly onChangeSettlementCurrency: (
+    currency: CurrencyCode,
+  ) => string | null;
 }
 
 const ZERO = BigInt(0);
-const yenFormatter = new Intl.NumberFormat("ja-JP");
 
-export function SettlementSummary({ trip }: SettlementSummaryProps) {
-  const settlement = calculateSettlement(trip);
+export function SettlementSummary({
+  trip,
+  onChangeSettlementCurrency,
+}: SettlementSummaryProps) {
+  const calculation = calculateSettlement(trip);
+  const settlement = calculation.ok ? calculation.settlement : null;
+  const selectableCurrencies: readonly CurrencyCode[] =
+    trip.localCurrency === "JPY" ? ["JPY"] : ["JPY", trip.localCurrency];
 
   return (
     <section
@@ -28,7 +37,7 @@ export function SettlementSummary({ trip }: SettlementSummaryProps) {
             精算結果
           </h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            支払いをもとに、最終的な負担額と送金先を計算します。
+            選んだ通貨へ換算してから、負担額と送金額を計算し直します。
           </p>
         </div>
 
@@ -37,12 +46,48 @@ export function SettlementSummary({ trip }: SettlementSummaryProps) {
             総費用
           </p>
           <p className="mt-1 break-words text-2xl font-bold">
-            {formatYen(settlement.totalExpense)}
+            {settlement === null
+              ? "—"
+              : formatMoney(settlement.totalExpense, settlement.currency)}
           </p>
         </div>
       </div>
 
-      {trip.payments.length === 0 ? (
+      {selectableCurrencies.length > 1 && (
+        <div className="mt-5">
+          <p className="text-sm font-semibold text-slate-700">精算する通貨</p>
+          <div className="mt-2 inline-flex rounded-xl border border-slate-200 bg-slate-100 p-1">
+            {selectableCurrencies.map((currency) => {
+              const selected = trip.settlementCurrency === currency;
+
+              return (
+                <button
+                  key={currency}
+                  type="button"
+                  aria-pressed={selected}
+                  className={`min-h-10 rounded-lg px-4 text-sm font-bold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 ${
+                    selected
+                      ? "bg-white text-emerald-800 shadow-sm"
+                      : "text-slate-600 hover:text-slate-950"
+                  }`}
+                  onClick={() => onChangeSettlementCurrency(currency)}
+                >
+                  {currency}で精算
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {!calculation.ok ? (
+        <div
+          role="alert"
+          className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-5 text-sm leading-6 text-amber-900"
+        >
+          {calculation.error}
+        </div>
+      ) : trip.payments.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center">
           <p className="font-semibold text-slate-800">
             支払いを追加すると精算結果が表示されます
@@ -62,7 +107,7 @@ export function SettlementSummary({ trip }: SettlementSummaryProps) {
                 メンバー別の内訳
               </h3>
               <ul className="mt-3 space-y-3">
-                {settlement.members.map((member) => (
+                {calculation.settlement.members.map((member) => (
                   <li
                     key={member.memberId}
                     className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 p-4"
@@ -71,19 +116,28 @@ export function SettlementSummary({ trip }: SettlementSummaryProps) {
                       <p className="min-w-0 break-words font-bold text-slate-900">
                         {member.memberName}
                       </p>
-                      <BalanceBadge member={member} />
+                      <BalanceBadge
+                        member={member}
+                        currency={calculation.settlement.currency}
+                      />
                     </div>
                     <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
                       <div>
                         <dt className="text-slate-500">支払った額</dt>
                         <dd className="mt-1 break-words font-semibold text-slate-800">
-                          {formatYen(member.paidAmount)}
+                          {formatMoney(
+                            member.paidAmount,
+                            calculation.settlement.currency,
+                          )}
                         </dd>
                       </div>
                       <div>
                         <dt className="text-slate-500">最終負担額</dt>
                         <dd className="mt-1 break-words font-semibold text-slate-800">
-                          {formatYen(member.burdenAmount)}
+                          {formatMoney(
+                            member.burdenAmount,
+                            calculation.settlement.currency,
+                          )}
                         </dd>
                       </div>
                     </dl>
@@ -96,7 +150,7 @@ export function SettlementSummary({ trip }: SettlementSummaryProps) {
               <h3 id="transfer-list-title" className="font-bold text-slate-900">
                 送金する内容
               </h3>
-              {settlement.transfers.length === 0 ? (
+              {calculation.settlement.transfers.length === 0 ? (
                 <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-6 text-center">
                   <p className="font-bold text-emerald-800">
                     精算する必要はありません
@@ -107,7 +161,7 @@ export function SettlementSummary({ trip }: SettlementSummaryProps) {
                 </div>
               ) : (
                 <ol className="mt-3 space-y-3">
-                  {settlement.transfers.map((transfer, index) => (
+                  {calculation.settlement.transfers.map((transfer, index) => (
                     <li
                       key={`${transfer.fromMemberId}-${transfer.toMemberId}-${index}`}
                       className="flex min-w-0 items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4"
@@ -130,7 +184,10 @@ export function SettlementSummary({ trip }: SettlementSummaryProps) {
                           へ
                         </p>
                         <p className="mt-1 break-words text-xl font-bold text-emerald-800">
-                          {formatYen(transfer.amount)}
+                          {formatMoney(
+                            transfer.amount,
+                            calculation.settlement.currency,
+                          )}
                         </p>
                       </div>
                     </li>
@@ -141,7 +198,7 @@ export function SettlementSummary({ trip }: SettlementSummaryProps) {
           </div>
 
           <p className="mt-6 rounded-2xl bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">
-            各メンバーの負担額は、支払いごとの端数を丸めず、旅行全体で合計してから1円単位に調整しています。
+            支払いを選択中の通貨へ換算し、旅行全体の合計に合うよう最小通貨単位で端数を配分しています。通貨を切り替えると換算と丸めも計算し直します。
           </p>
         </>
       )}
@@ -149,11 +206,17 @@ export function SettlementSummary({ trip }: SettlementSummaryProps) {
   );
 }
 
-function BalanceBadge({ member }: { readonly member: MemberSettlement }) {
+function BalanceBadge({
+  member,
+  currency,
+}: {
+  readonly member: MemberSettlement;
+  readonly currency: CurrencyCode;
+}) {
   if (member.balance > ZERO) {
     return (
       <span className="shrink-0 rounded-full bg-sky-100 px-3 py-1 text-xs font-bold text-sky-800">
-        受け取る {formatYen(member.balance)}
+        受け取る {formatMoney(member.balance, currency)}
       </span>
     );
   }
@@ -161,7 +224,7 @@ function BalanceBadge({ member }: { readonly member: MemberSettlement }) {
   if (member.balance < ZERO) {
     return (
       <span className="shrink-0 rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">
-        支払う {formatYen(-member.balance)}
+        支払う {formatMoney(-member.balance, currency)}
       </span>
     );
   }
@@ -171,8 +234,4 @@ function BalanceBadge({ member }: { readonly member: MemberSettlement }) {
       差額なし
     </span>
   );
-}
-
-function formatYen(amount: bigint): string {
-  return `${yenFormatter.format(amount)}円`;
 }

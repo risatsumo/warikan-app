@@ -4,7 +4,8 @@ import {
   createTrip,
   type CreateTripValidationErrors,
 } from "@/lib/trips";
-import type { Trip } from "@/types/domain";
+import { SUPPORTED_CURRENCIES } from "@/lib/currencies";
+import type { CurrencyCode, Trip } from "@/types/domain";
 
 interface TripFormProps {
   readonly disabled: boolean;
@@ -15,6 +16,7 @@ const INITIAL_MEMBER_NAMES = ["", ""] as const;
 
 export function TripForm({ disabled, onCreateTrip }: TripFormProps) {
   const [tripName, setTripName] = useState("");
+  const [localCurrency, setLocalCurrency] = useState<CurrencyCode>("JPY");
   const [memberNames, setMemberNames] = useState<readonly string[]>(
     INITIAL_MEMBER_NAMES,
   );
@@ -27,7 +29,7 @@ export function TripForm({ disabled, onCreateTrip }: TripFormProps) {
     event.preventDefault();
     setSubmitError(null);
 
-    const result = createTrip({ name: tripName, memberNames });
+    const result = createTrip({ name: tripName, localCurrency, memberNames });
 
     if (!result.ok) {
       setErrors(result.errors);
@@ -42,6 +44,7 @@ export function TripForm({ disabled, onCreateTrip }: TripFormProps) {
     }
 
     setTripName("");
+    setLocalCurrency("JPY");
     setMemberNames(INITIAL_MEMBER_NAMES);
     setErrors(null);
   }
@@ -111,6 +114,48 @@ export function TripForm({ disabled, onCreateTrip }: TripFormProps) {
           {errors?.tripName && (
             <p id="trip-name-error" className="mt-2 text-sm text-red-700">
               {errors.tripName}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label
+            className="text-sm font-semibold text-slate-800"
+            htmlFor="trip-local-currency"
+          >
+            現地通貨
+            <span className="ml-2 text-xs font-medium text-red-600">必須</span>
+          </label>
+          <select
+            id="trip-local-currency"
+            value={localCurrency}
+            disabled={disabled}
+            aria-describedby={
+              errors?.localCurrency ? "trip-local-currency-error" : undefined
+            }
+            aria-invalid={Boolean(errors?.localCurrency)}
+            className={`${inputClassName} ${
+              errors?.localCurrency
+                ? "border-red-400 focus:border-red-500 focus:ring-red-100"
+                : "border-slate-300 focus:border-sky-500 focus:ring-sky-100"
+            }`}
+            onChange={(event) => {
+              setLocalCurrency(event.target.value as CurrencyCode);
+              setErrors(null);
+            }}
+          >
+            {SUPPORTED_CURRENCIES.map((currency) => (
+              <option key={currency.code} value={currency.code}>
+                {currency.name}（{currency.code}）
+              </option>
+            ))}
+          </select>
+          <p className="mt-2 text-xs leading-5 text-slate-500">
+            日本円とここで選んだ通貨で支払いを登録できます。
+          </p>
+          {errors?.localCurrency && (
+            <p id="trip-local-currency-error" className="mt-2 text-sm text-red-700">
+              {errors.localCurrency}
             </p>
           )}
         </div>
