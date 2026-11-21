@@ -13,7 +13,7 @@ export type CurrencyCode =
 
 /** localStorage に保存するアプリ全体のデータ。 */
 export interface AppData {
-  readonly version: 3;
+  readonly version: 4;
   readonly trips: readonly Trip[];
 }
 
@@ -24,6 +24,7 @@ export interface Trip {
   readonly localCurrency: CurrencyCode;
   readonly settlementCurrency: CurrencyCode;
   readonly exchangeRates: readonly ExchangeRate[];
+  readonly prioritizePayersForRounding: boolean;
   readonly members: readonly Member[];
   readonly payments: readonly Payment[];
 }

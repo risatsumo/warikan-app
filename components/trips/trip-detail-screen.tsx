@@ -1,24 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import {
   addPaymentToTrip,
   removePaymentFromTrip,
   updatePaymentInTrip,
 } from "@/lib/payments";
-import { loadAppData, saveAppData } from "@/lib/storage";
+import { saveAppData } from "@/lib/storage";
 import {
   addMemberToTrip,
-  findTripById,
   removeMemberFromTrip,
   updateTripExchangeRate,
   updateTripSettlementCurrency,
   updateTripSettings,
 } from "@/lib/trips";
 import type {
-  AppData,
   CurrencyCode,
   ExchangeRate,
   Member,
@@ -31,25 +29,14 @@ import { MemberList } from "./member-list";
 import { PaymentList } from "./payment-list";
 import { SettlementSummary } from "./settlement-summary";
 import { TripSettings } from "./trip-settings";
+import { useTripDetailData } from "./use-trip-detail-data";
 
 interface TripDetailScreenProps {
   readonly tripId: string;
 }
 
-type TripLoadState =
-  | { readonly status: "loading" }
-  | {
-      readonly status: "ready";
-      readonly appData: AppData;
-      readonly trip: Trip;
-    }
-  | { readonly status: "not-found" }
-  | { readonly status: "error"; readonly message: string };
-
 export function TripDetailScreen({ tripId }: TripDetailScreenProps) {
-  const [loadState, setLoadState] = useState<TripLoadState>({
-    status: "loading",
-  });
+  const { state: loadState, setState: setLoadState } = useTripDetailData(tripId);
   const [paymentToDelete, setPaymentToDelete] = useState<Payment | null>(null);
   const [deletePaymentError, setDeletePaymentError] = useState<string | null>(
     null,
@@ -61,26 +48,6 @@ export function TripDetailScreen({ tripId }: TripDetailScreenProps) {
   const [deleteMemberError, setDeleteMemberError] = useState<string | null>(
     null,
   );
-
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      const result = loadAppData(window.localStorage);
-
-      if (!result.ok) {
-        setLoadState({ status: "error", message: result.error.message });
-        return;
-      }
-
-      const trip = findTripById(result.data, tripId);
-      setLoadState(
-        trip === null
-          ? { status: "not-found" }
-          : { status: "ready", appData: result.data, trip },
-      );
-    }, 0);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [tripId]);
 
   function handleAddMember(memberName: string): string | null {
     if (loadState.status !== "ready") {
@@ -190,6 +157,7 @@ export function TripDetailScreen({ tripId }: TripDetailScreenProps) {
   function handleSaveTripSettings(input: {
     readonly name: string;
     readonly localCurrency: CurrencyCode;
+    readonly prioritizePayersForRounding: boolean;
   }): string | null {
     if (loadState.status !== "ready") {
       return "旅行データの読み込みが終わってから、もう一度お試しください。";
@@ -488,6 +456,7 @@ interface TripDetailsProps {
   readonly onSaveTripSettings: (input: {
     readonly name: string;
     readonly localCurrency: CurrencyCode;
+    readonly prioritizePayersForRounding: boolean;
   }) => string | null;
   readonly onSaveExchangeRate: (
     exchangeRate: ExchangeRate,
@@ -571,6 +540,7 @@ function TripDetails({
           <SettlementSummary
             trip={trip}
             onChangeSettlementCurrency={onChangeSettlementCurrency}
+            onEditSettings={() => setIsEditing(true)}
           />
 
           <PaymentList

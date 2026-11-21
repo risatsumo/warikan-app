@@ -14,6 +14,7 @@ interface TripSettingsProps {
   readonly onSaveSettings: (input: {
     readonly name: string;
     readonly localCurrency: CurrencyCode;
+    readonly prioritizePayersForRounding: boolean;
   }) => string | null;
   readonly onSaveExchangeRate: (
     exchangeRate: ExchangeRate,
@@ -29,13 +30,15 @@ export function TripSettings({
   const [localCurrency, setLocalCurrency] = useState<CurrencyCode>(
     trip.localCurrency,
   );
+  const [prioritizePayersForRounding, setPrioritizePayersForRounding] =
+    useState(trip.prioritizePayersForRounding);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const rateCurrencies = collectRateCurrencies(trip);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const saveError = onSaveSettings({ name, localCurrency });
+    const saveError = onSaveSettings({ name, localCurrency, prioritizePayersForRounding });
 
     if (saveError !== null) {
       setError(saveError);
@@ -80,6 +83,19 @@ export function TripSettings({
               }}
             />
           </label>
+
+          <div className="sm:col-span-2 rounded-2xl border border-sky-100 bg-white p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">立て替えた人の負担を軽くする</p>
+                <p className="mt-1 text-xs leading-5 text-slate-600">オンにすると、端数の1円・1セントを立替総額が多い人から優先して割り当てます。</p>
+              </div>
+              <button type="button" role="switch" aria-checked={prioritizePayersForRounding} onClick={() => { setPrioritizePayersForRounding((value) => !value); setError(null); setMessage(null); }} className={`relative h-8 w-14 shrink-0 rounded-full transition ${prioritizePayersForRounding ? "bg-sky-700" : "bg-slate-300"}`}>
+                <span className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow transition ${prioritizePayersForRounding ? "left-7" : "left-1"}`} />
+                <span className="sr-only">{prioritizePayersForRounding ? "オン" : "オフ"}</span>
+              </button>
+            </div>
+          </div>
 
           <label className="text-sm font-semibold text-slate-800" htmlFor="edit-local-currency">
             現在の現地通貨

@@ -401,7 +401,7 @@
           </p>
           <div class="metrics" aria-label="実装規模">
             <div class="metric"><strong>10</strong><span>対応通貨</span></div>
-            <div class="metric"><strong>60</strong><span>自動テスト</span></div>
+            <div class="metric"><strong>61</strong><span>自動テスト</span></div>
             <div class="metric"><strong>2</strong><span>主要画面</span></div>
           </div>
         </section>
@@ -451,6 +451,12 @@
             <p class="ux-item">
               <strong>精算結果をコピー</strong>でき、旅行名・精算通貨・誰から誰へいくら送るかを、そのままメッセージで共有できます。
             </p>
+            <p class="ux-item">
+              為替レートが未設定の場合、エラー内の<strong>旅行設定を編集</strong>ボタンから直接レートを登録できます。
+            </p>
+            <p class="ux-item">
+              設定画面で<strong>立替総額の多い人を端数配分で優先</strong>するか選べます。初期状態は公平配分です。
+            </p>
           </div>
         </section>
 
@@ -458,7 +464,7 @@
           <section class="card">
             <h2 class="card-title"><span class="number">04</span>役割で分けたコンポーネント設計</h2>
             <p>
-              画面表示、入力処理、計算、保存を役割ごとに分離しました。変更の影響範囲を小さくし、精算ロジックをUIから独立してテストできます。
+              画面表示、入力処理、計算、保存を役割ごとに分離しました。旅行データの読み込みと保存状態は専用フックへ分け、精算ロジックはUIから独立してテストできます。
             </p>
             <div class="layers" aria-label="コンポーネント構成">
               <div class="layer"><strong>画面</strong><span>Trip / Payment / Settlement</span></div>
@@ -471,7 +477,7 @@
             <h2 class="card-title"><span class="number">05</span>壊れにくさを支える品質対策</h2>
             <div class="quality-list">
               <span class="quality">TypeScript strict</span>
-              <span class="quality">60件の自動テスト</span>
+              <span class="quality">計算ロジックの自動テスト</span>
               <span class="quality">入力値を二重検証</span>
               <span class="quality">削除前の確認画面</span>
               <span class="quality">旧データ自動移行</span>
@@ -485,7 +491,6 @@
 
       <footer>
         <span>Repository: github.com/risatsumo/warikan-app</span>
-        <span>設計方針: 入力事実を保持し、計算結果は常に再生成</span>
       </footer>
     </article>
   </body>

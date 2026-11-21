@@ -41,6 +41,7 @@ interface Fraction {
 interface RoundedBurdenCandidate {
   readonly memberId: string;
   readonly registrationIndex: number;
+  readonly amountPaid: bigint;
   readonly floorAmount: bigint;
   readonly remainderNumerator: bigint;
   readonly remainderDenominator: bigint;
@@ -153,11 +154,13 @@ export function calculateSettlement(
     trip,
     paidFractionByMemberId,
     totalExpense,
+    false,
   );
   const burdenAmountByMemberId = roundMemberFractions(
     trip,
     burdenFractionByMemberId,
     totalExpense,
+    trip.prioritizePayersForRounding,
   );
 
   const members: MemberSettlement[] = trip.members.map((member) => {
@@ -188,6 +191,7 @@ function roundMemberFractions(
   trip: Trip,
   amountByMemberId: ReadonlyMap<string, Fraction>,
   targetTotal: bigint,
+  prioritizePayers: boolean,
 ): Map<string, bigint> {
 
   const roundedCandidates: RoundedBurdenCandidate[] = trip.members.map(
@@ -200,6 +204,11 @@ function roundMemberFractions(
       return {
         memberId: member.id,
         registrationIndex,
+        amountPaid: BigInt(
+          trip.payments
+            .filter((payment) => payment.payerId === member.id)
+            .reduce((total, payment) => total + payment.amountMinor, 0),
+        ),
         floorAmount: burden.numerator / burden.denominator,
         remainderNumerator: burden.numerator % burden.denominator,
         remainderDenominator: burden.denominator,
@@ -212,7 +221,11 @@ function roundMemberFractions(
   );
   const remainingUnits = Number(targetTotal - floorTotal);
 
-  roundedCandidates.sort(compareBurdenRemainders);
+  roundedCandidates.sort((left, right) =>
+    prioritizePayers
+      ? comparePayerPriority(left, right) || compareBurdenRemainders(left, right)
+      : compareBurdenRemainders(left, right),
+  );
 
   const roundedAmountByMemberId = new Map(
     roundedCandidates.map((candidate) => [
@@ -230,6 +243,16 @@ function roundMemberFractions(
   }
 
   return roundedAmountByMemberId;
+}
+
+function comparePayerPriority(
+  left: RoundedBurdenCandidate,
+  right: RoundedBurdenCandidate,
+): number {
+  if (left.amountPaid !== right.amountPaid) {
+    return left.amountPaid > right.amountPaid ? -1 : 1;
+  }
+  return 0;
 }
 
 function convertPaymentAmount(

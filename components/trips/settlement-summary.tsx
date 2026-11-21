@@ -10,6 +10,7 @@ interface SettlementSummaryProps {
   readonly onChangeSettlementCurrency: (
     currency: CurrencyCode,
   ) => string | null;
+  readonly onEditSettings: () => void;
 }
 
 const ZERO = BigInt(0);
@@ -17,6 +18,7 @@ const ZERO = BigInt(0);
 export function SettlementSummary({
   trip,
   onChangeSettlementCurrency,
+  onEditSettings,
 }: SettlementSummaryProps) {
   const [isMemberBreakdownOpen, setIsMemberBreakdownOpen] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState<{
@@ -112,7 +114,10 @@ export function SettlementSummary({
           role="alert"
           className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-5 text-sm leading-6 text-amber-900"
         >
-          {calculation.error}「旅行設定を編集」から設定してください。
+          {calculation.error}為替レートを登録するには旅行設定の編集が必要です。
+          <button type="button" className="mt-3 block min-h-11 rounded-xl bg-amber-900 px-4 font-bold text-white hover:bg-amber-800" onClick={onEditSettings}>
+            旅行設定を編集
+          </button>
         </div>
       ) : trip.payments.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center">

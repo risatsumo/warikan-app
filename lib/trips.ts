@@ -26,6 +26,7 @@ export interface CreateTripValidationErrors {
 export interface UpdateTripSettingsInput {
   readonly name: string;
   readonly localCurrency: CurrencyCode;
+  readonly prioritizePayersForRounding: boolean;
 }
 
 export type CreateTripResult =
@@ -120,6 +121,7 @@ export function createTrip(
       localCurrency: input.localCurrency,
       settlementCurrency: "JPY",
       exchangeRates: [],
+      prioritizePayersForRounding: false,
       members: input.memberNames.map((name) => ({
         id: createId(),
         name: name.trim(),
@@ -159,6 +161,7 @@ export function updateTripSettings(
     settlementCurrency: localCurrencyChanged
       ? "JPY"
       : trip.settlementCurrency,
+    prioritizePayersForRounding: input.prioritizePayersForRounding,
   });
 }
 

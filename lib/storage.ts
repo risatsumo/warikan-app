@@ -33,7 +33,7 @@ export type SaveAppDataResult =
   | { readonly ok: false; readonly error: StorageError };
 
 export function createEmptyAppData(): AppData {
-  return { version: 3, trips: [] };
+  return { version: 4, trips: [] };
 }
 
 export function loadAppData(storage: StorageAdapter): LoadAppDataResult {
@@ -118,12 +118,18 @@ function parseAppData(value: unknown): AppData | null {
     return null;
   }
 
-  if (value.version === 3 && value.trips.every(isTrip)) {
+  if (value.version === 4 && value.trips.every(isTrip)) {
     const appData = value as unknown as AppData;
 
     return hasUniqueStrings(appData.trips.map((trip) => trip.id))
-      ? appData
+      ? { version: 4, trips: appData.trips.map((trip) => ({ ...trip, prioritizePayersForRounding: false })) }
       : null;
+  }
+
+  if (value.version === 3 && value.trips.every(isVersion3Trip)) {
+    const version3Trips = value.trips as (Omit<Trip, "prioritizePayersForRounding">)[];
+    if (!hasUniqueStrings(version3Trips.map((trip) => trip.id))) return null;
+    return { version: 4, trips: version3Trips.map((trip) => ({ ...trip, prioritizePayersForRounding: false })) };
   }
 
   if (value.version === 2 && value.trips.every(isVersion2Trip)) {
@@ -134,7 +140,7 @@ function parseAppData(value: unknown): AppData | null {
     }
 
     return {
-      version: 3,
+      version: 4,
       trips: version2Trips.map((trip) => ({
         id: trip.id,
         name: trip.name,
@@ -154,6 +160,7 @@ function parseAppData(value: unknown): AppData | null {
               ],
         members: trip.members,
         payments: trip.payments,
+        prioritizePayersForRounding: false,
       })),
     };
   }
@@ -166,12 +173,13 @@ function parseAppData(value: unknown): AppData | null {
     }
 
     return {
-      version: 3,
+      version: 4,
       trips: legacyTrips.map((trip) => ({
         ...trip,
         localCurrency: "JPY",
         settlementCurrency: "JPY",
         exchangeRates: [],
+        prioritizePayersForRounding: false,
       })),
     };
   }
@@ -180,7 +188,7 @@ function parseAppData(value: unknown): AppData | null {
 }
 
 function isAppData(value: unknown): value is AppData {
-  if (!isRecord(value) || value.version !== 3 || !Array.isArray(value.trips)) {
+  if (!isRecord(value) || value.version !== 4 || !Array.isArray(value.trips)) {
     return false;
   }
 
@@ -202,6 +210,7 @@ function isTrip(value: unknown): value is Trip {
       value.settlementCurrency !== value.localCurrency) ||
     !Array.isArray(value.exchangeRates) ||
     !value.exchangeRates.every(isExchangeRate) ||
+    typeof value.prioritizePayersForRounding !== "boolean" ||
     !Array.isArray(value.members) ||
     !Array.isArray(value.payments) ||
     value.members.length < 2 ||
@@ -234,6 +243,13 @@ function isTrip(value: unknown): value is Trip {
   }
 
   return hasUniqueStrings(value.payments.map((payment) => payment.id));
+}
+
+function isVersion3Trip(value: unknown): value is Omit<Trip, "prioritizePayersForRounding"> {
+  if (!isRecord(value)) return false;
+  const legacyTrip = { ...value };
+  delete legacyTrip.prioritizePayersForRounding;
+  return isTrip({ ...legacyTrip, prioritizePayersForRounding: false });
 }
 
 function isMember(value: unknown): value is Member {
