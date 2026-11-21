@@ -1,5 +1,8 @@
+import { useState } from "react";
+
 import { formatMoney } from "@/lib/currencies";
 import { calculateSettlement, type MemberSettlement } from "@/lib/settlement";
+import { createSettlementCopyText } from "@/lib/settlement-copy";
 import type { CurrencyCode, Trip } from "@/types/domain";
 
 interface SettlementSummaryProps {
@@ -15,10 +18,34 @@ export function SettlementSummary({
   trip,
   onChangeSettlementCurrency,
 }: SettlementSummaryProps) {
+  const [isMemberBreakdownOpen, setIsMemberBreakdownOpen] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState<{
+    readonly text: string;
+    readonly status: "copied" | "error";
+  } | null>(null);
   const calculation = calculateSettlement(trip);
   const settlement = calculation.ok ? calculation.settlement : null;
+  const settlementCopyText =
+    settlement === null || trip.payments.length === 0
+      ? null
+      : createSettlementCopyText(trip.name, settlement);
+  const currentCopyStatus =
+    copyFeedback?.text === settlementCopyText ? copyFeedback.status : null;
   const selectableCurrencies: readonly CurrencyCode[] =
     trip.localCurrency === "JPY" ? ["JPY"] : ["JPY", trip.localCurrency];
+
+  async function handleCopySettlement(copyText: string) {
+    try {
+      if (navigator.clipboard === undefined) {
+        throw new Error("Clipboard API is unavailable.");
+      }
+
+      await navigator.clipboard.writeText(copyText);
+      setCopyFeedback({ text: copyText, status: "copied" });
+    } catch {
+      setCopyFeedback({ text: copyText, status: "error" });
+    }
+  }
 
   return (
     <section
@@ -100,9 +127,39 @@ export function SettlementSummary({
         <>
           <div className="mt-7 space-y-8">
             <section aria-labelledby="transfer-list-title">
-              <h3 id="transfer-list-title" className="font-bold text-slate-900">
-                送金する内容
-              </h3>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3
+                  id="transfer-list-title"
+                  className="font-bold text-slate-900"
+                >
+                  送金する内容
+                </h3>
+                {settlementCopyText !== null && (
+                  <button
+                    type="button"
+                    className="min-h-10 rounded-xl border border-emerald-200 bg-white px-4 text-sm font-bold text-emerald-800 transition hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+                    onClick={() => void handleCopySettlement(settlementCopyText)}
+                  >
+                    精算結果をコピー
+                  </button>
+                )}
+              </div>
+              {currentCopyStatus === "copied" && (
+                <p
+                  role="status"
+                  className="mt-2 text-right text-sm font-semibold text-emerald-700"
+                >
+                  コピーしました。
+                </p>
+              )}
+              {currentCopyStatus === "error" && (
+                <p
+                  role="alert"
+                  className="mt-2 text-right text-sm font-semibold text-red-700"
+                >
+                  コピーできませんでした。ブラウザーの権限を確認してください。
+                </p>
+              )}
               {calculation.settlement.transfers.length === 0 ? (
                 <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-6 text-center">
                   <p className="font-bold text-emerald-800">
@@ -159,13 +216,34 @@ export function SettlementSummary({
               aria-labelledby="member-settlement-title"
               className="border-t border-slate-200 pt-6"
             >
-              <h3
-                id="member-settlement-title"
-                className="font-bold text-slate-900"
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3
+                  id="member-settlement-title"
+                  className="font-bold text-slate-900"
+                >
+                  メンバー別の内訳
+                </h3>
+                <button
+                  type="button"
+                  aria-expanded={isMemberBreakdownOpen}
+                  aria-controls="member-settlement-details"
+                  className="min-h-10 rounded-xl px-3 text-sm font-bold text-slate-700 transition hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-700"
+                  onClick={() =>
+                    setIsMemberBreakdownOpen((currentValue) => !currentValue)
+                  }
+                >
+                  {isMemberBreakdownOpen ? "内訳を閉じる" : "内訳を表示"}
+                </button>
+              </div>
+              <ul
+                id="member-settlement-details"
+                hidden={!isMemberBreakdownOpen}
+                className={
+                  isMemberBreakdownOpen
+                    ? "mt-3 grid gap-3 md:grid-cols-2"
+                    : "hidden"
+                }
               >
-                メンバー別の内訳
-              </h3>
-              <ul className="mt-3 grid gap-3 md:grid-cols-2">
                 {calculation.settlement.members.map((member) => (
                   <li
                     key={member.memberId}

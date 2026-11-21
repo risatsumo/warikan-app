@@ -39,6 +39,10 @@ export type RemovePaymentResult =
   | { readonly ok: true; readonly data: AppData; readonly trip: Trip }
   | { readonly ok: false; readonly error: string };
 
+export type UpdatePaymentResult =
+  | { readonly ok: true; readonly data: AppData; readonly trip: Trip }
+  | { readonly ok: false; readonly error: string };
+
 type CreateId = () => string;
 
 export function createPayment(
@@ -47,8 +51,40 @@ export function createPayment(
   localCurrency: CurrencyCode = "JPY",
   createId: CreateId = () => crypto.randomUUID(),
 ): CreatePaymentResult {
+  return createPaymentWithAllowedCurrencies(
+    input,
+    members,
+    ["JPY", localCurrency],
+    createId,
+  );
+}
+
+/**
+ * 既存の支払いを編集用入力から作り直す。
+ * 旅行の現地通貨を変更済みでも、元の支払い通貨は保持・再選択できる。
+ */
+export function createUpdatedPayment(
+  input: CreatePaymentInput,
+  members: readonly Member[],
+  localCurrency: CurrencyCode,
+  currentPayment: Payment,
+): CreatePaymentResult {
+  return createPaymentWithAllowedCurrencies(
+    input,
+    members,
+    ["JPY", localCurrency, currentPayment.currency],
+    currentPayment.id,
+  );
+}
+
+function createPaymentWithAllowedCurrencies(
+  input: CreatePaymentInput,
+  members: readonly Member[],
+  allowedCurrencyList: readonly CurrencyCode[],
+  paymentId: string | CreateId,
+): CreatePaymentResult {
   const memberIds = new Set(members.map((member) => member.id));
-  const allowedCurrencies = new Set<CurrencyCode>(["JPY", localCurrency]);
+  const allowedCurrencies = new Set<CurrencyCode>(allowedCurrencyList);
   const isAllowedCurrency = allowedCurrencies.has(input.currency);
   const amountMinor = isAllowedCurrency
     ? parseMoneyInput(input.amount, input.currency)
@@ -93,7 +129,7 @@ export function createPayment(
   return {
     ok: true,
     payment: {
-      id: createId(),
+      id: typeof paymentId === "string" ? paymentId : paymentId(),
       payerId: input.payerId,
       amountMinor,
       currency: input.currency,
@@ -170,6 +206,70 @@ export function removePaymentFromTrip(
   const updatedTrip: Trip = {
     ...trip,
     payments: trip.payments.filter((payment) => payment.id !== paymentId),
+  };
+
+  return {
+    ok: true,
+    data: {
+      ...appData,
+      trips: appData.trips.map((currentTrip) =>
+        currentTrip.id === tripId ? updatedTrip : currentTrip,
+      ),
+    },
+    trip: updatedTrip,
+  };
+}
+
+export function updatePaymentInTrip(
+  appData: AppData,
+  tripId: string,
+  payment: Payment,
+): UpdatePaymentResult {
+  const trip = appData.trips.find((currentTrip) => currentTrip.id === tripId);
+
+  if (trip === undefined) {
+    return { ok: false, error: "旅行が見つかりません。" };
+  }
+
+  const currentPayment = trip.payments.find(
+    (tripPayment) => tripPayment.id === payment.id,
+  );
+
+  if (currentPayment === undefined) {
+    return { ok: false, error: "編集する支払いが見つかりません。" };
+  }
+
+  const memberIds = new Set(trip.members.map((member) => member.id));
+  const allowedCurrencies = new Set<CurrencyCode>([
+    "JPY",
+    trip.localCurrency,
+    currentPayment.currency,
+  ]);
+  const hasDuplicateSplitMembers =
+    new Set(payment.splitAmongMemberIds).size !==
+    payment.splitAmongMemberIds.length;
+
+  if (
+    !memberIds.has(payment.payerId) ||
+    !allowedCurrencies.has(payment.currency) ||
+    !Number.isSafeInteger(payment.amountMinor) ||
+    payment.amountMinor < 1 ||
+    payment.description.trim() === "" ||
+    payment.splitAmongMemberIds.length === 0 ||
+    hasDuplicateSplitMembers ||
+    payment.splitAmongMemberIds.some((memberId) => !memberIds.has(memberId))
+  ) {
+    return {
+      ok: false,
+      error: "支払いの内容が正しくないため更新できません。",
+    };
+  }
+
+  const updatedTrip: Trip = {
+    ...trip,
+    payments: trip.payments.map((tripPayment) =>
+      tripPayment.id === payment.id ? payment : tripPayment,
+    ),
   };
 
   return {

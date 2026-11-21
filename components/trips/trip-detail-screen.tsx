@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { addPaymentToTrip, removePaymentFromTrip } from "@/lib/payments";
+import {
+  addPaymentToTrip,
+  removePaymentFromTrip,
+  updatePaymentInTrip,
+} from "@/lib/payments";
 import { loadAppData, saveAppData } from "@/lib/storage";
 import {
   addMemberToTrip,
@@ -110,6 +114,31 @@ export function TripDetailScreen({ tripId }: TripDetailScreenProps) {
     }
 
     const result = addPaymentToTrip(loadState.appData, tripId, payment);
+
+    if (!result.ok) {
+      return result.error;
+    }
+
+    const saveResult = saveAppData(window.localStorage, result.data);
+
+    if (!saveResult.ok) {
+      return saveResult.error.message;
+    }
+
+    setLoadState({
+      status: "ready",
+      appData: result.data,
+      trip: result.trip,
+    });
+    return null;
+  }
+
+  function handleUpdatePayment(payment: Payment): string | null {
+    if (loadState.status !== "ready") {
+      return "旅行データの読み込みが終わってから、もう一度お試しください。";
+    }
+
+    const result = updatePaymentInTrip(loadState.appData, tripId, payment);
 
     if (!result.ok) {
       return result.error;
@@ -360,6 +389,7 @@ export function TripDetailScreen({ tripId }: TripDetailScreenProps) {
             trip={loadState.trip}
             onAddMember={handleAddMember}
             onAddPayment={handleAddPayment}
+            onUpdatePayment={handleUpdatePayment}
             onSaveTripSettings={handleSaveTripSettings}
             onSaveExchangeRate={handleSaveExchangeRate}
             onChangeSettlementCurrency={handleChangeSettlementCurrency}
@@ -454,6 +484,7 @@ interface TripDetailsProps {
   readonly trip: Trip;
   readonly onAddMember: (memberName: string) => string | null;
   readonly onAddPayment: (payment: Payment) => string | null;
+  readonly onUpdatePayment: (payment: Payment) => string | null;
   readonly onSaveTripSettings: (input: {
     readonly name: string;
     readonly localCurrency: CurrencyCode;
@@ -473,6 +504,7 @@ function TripDetails({
   trip,
   onAddMember,
   onAddPayment,
+  onUpdatePayment,
   onSaveTripSettings,
   onSaveExchangeRate,
   onChangeSettlementCurrency,
@@ -546,6 +578,7 @@ function TripDetails({
             localCurrency={trip.localCurrency}
             payments={trip.payments}
             onAddPayment={onAddPayment}
+            onUpdatePayment={onUpdatePayment}
             onRequestDeletePayment={onRequestDeletePayment}
           />
         </>

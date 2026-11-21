@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import { formatMoney } from "@/lib/currencies";
 import type { CurrencyCode, Member, Payment } from "@/types/domain";
 
@@ -8,6 +10,7 @@ interface PaymentListProps {
   readonly localCurrency: CurrencyCode;
   readonly payments: readonly Payment[];
   readonly onAddPayment: (payment: Payment) => string | null;
+  readonly onUpdatePayment: (payment: Payment) => string | null;
   readonly onRequestDeletePayment: (payment: Payment) => void;
 }
 
@@ -16,11 +19,38 @@ export function PaymentList({
   localCurrency,
   payments,
   onAddPayment,
+  onUpdatePayment,
   onRequestDeletePayment,
 }: PaymentListProps) {
+  const [paymentIdBeingEdited, setPaymentIdBeingEdited] = useState<
+    string | null
+  >(null);
+  const [updateMessage, setUpdateMessage] = useState<string | null>(null);
   const memberNameById = new Map(
     members.map((member) => [member.id, member.name]),
   );
+
+  function handleAddPayment(payment: Payment): string | null {
+    const saveError = onAddPayment(payment);
+
+    if (saveError === null) {
+      setUpdateMessage(null);
+    }
+
+    return saveError;
+  }
+
+  function handleUpdatePayment(payment: Payment): string | null {
+    const saveError = onUpdatePayment(payment);
+
+    if (saveError !== null) {
+      return saveError;
+    }
+
+    setPaymentIdBeingEdited(null);
+    setUpdateMessage(`「${payment.description}」を更新しました。`);
+    return null;
+  }
 
   return (
     <section
@@ -47,11 +77,19 @@ export function PaymentList({
       <PaymentForm
         members={members}
         localCurrency={localCurrency}
-        onAddPayment={onAddPayment}
+        onSavePayment={handleAddPayment}
       />
 
       <div className="mt-8 border-t border-slate-200 pt-6">
         <h3 className="text-sm font-bold text-slate-700">支払い履歴</h3>
+        {updateMessage !== null && (
+          <p
+            role="status"
+            className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800"
+          >
+            {updateMessage}
+          </p>
+        )}
         {payments.length === 0 ? (
           <div className="mt-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-10 text-center">
             <div
@@ -69,40 +107,75 @@ export function PaymentList({
           </div>
         ) : (
           <ul className="mt-3 space-y-3">
-            {payments.map((payment) => (
-              <li
-                key={payment.id}
-                className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-                  <p className="min-w-0 break-words font-bold text-slate-900">
-                    {payment.description}
-                  </p>
-                  <p className="shrink-0 font-bold text-slate-950">
-                    {formatMoney(payment.amountMinor, payment.currency)}
-                  </p>
-                </div>
-                <p className="mt-2 break-words text-sm leading-6 text-slate-600">
-                  {memberNameById.get(payment.payerId)}さんが支払い
-                </p>
-                <p className="break-words text-sm leading-6 text-slate-500">
-                  負担する人：
-                  {payment.splitAmongMemberIds
-                    .map((memberId) => memberNameById.get(memberId))
-                    .join("、")}
-                </p>
-                <div className="mt-3 flex justify-end border-t border-slate-200 pt-2">
-                  <button
-                    type="button"
-                    aria-label={`「${payment.description}」を削除`}
-                    className="min-h-11 rounded-xl px-3 text-sm font-bold text-red-600 transition hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
-                    onClick={() => onRequestDeletePayment(payment)}
-                  >
-                    削除
-                  </button>
-                </div>
-              </li>
-            ))}
+            {payments.map((payment) => {
+              const isEditing = paymentIdBeingEdited === payment.id;
+
+              return (
+                <li
+                  key={payment.id}
+                  className={
+                    isEditing
+                      ? "min-w-0"
+                      : "min-w-0 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                  }
+                >
+                  {isEditing ? (
+                    <PaymentForm
+                      key={payment.id}
+                      members={members}
+                      localCurrency={localCurrency}
+                      paymentToEdit={payment}
+                      onSavePayment={handleUpdatePayment}
+                      onCancelEdit={() => setPaymentIdBeingEdited(null)}
+                    />
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+                        <p className="min-w-0 break-words font-bold text-slate-900">
+                          {payment.description}
+                        </p>
+                        <p className="shrink-0 font-bold text-slate-950">
+                          {formatMoney(payment.amountMinor, payment.currency)}
+                        </p>
+                      </div>
+                      <p className="mt-2 break-words text-sm leading-6 text-slate-600">
+                        {memberNameById.get(payment.payerId)}さんが支払い
+                      </p>
+                      <p className="break-words text-sm leading-6 text-slate-500">
+                        負担する人：
+                        {payment.splitAmongMemberIds
+                          .map((memberId) => memberNameById.get(memberId))
+                          .join("、")}
+                      </p>
+                      <div className="mt-3 flex justify-end gap-1 border-t border-slate-200 pt-2">
+                        <button
+                          type="button"
+                          aria-label={`「${payment.description}」を編集`}
+                          className="min-h-11 rounded-xl px-3 text-sm font-bold text-sky-700 transition hover:bg-sky-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-700"
+                          onClick={() => {
+                            setPaymentIdBeingEdited(payment.id);
+                            setUpdateMessage(null);
+                          }}
+                        >
+                          編集
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`「${payment.description}」を削除`}
+                          className="min-h-11 rounded-xl px-3 text-sm font-bold text-red-600 transition hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
+                          onClick={() => {
+                            setUpdateMessage(null);
+                            onRequestDeletePayment(payment);
+                          }}
+                        >
+                          削除
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

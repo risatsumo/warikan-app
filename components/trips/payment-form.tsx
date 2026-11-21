@@ -2,9 +2,11 @@ import { useState, type FormEvent } from "react";
 
 import {
   createPayment,
+  createUpdatedPayment,
   type PaymentValidationErrors,
 } from "@/lib/payments";
 import {
+  formatMoneyInput,
   getCurrencyFractionDigits,
   getCurrencyInputStep,
 } from "@/lib/currencies";
@@ -13,20 +15,45 @@ import type { CurrencyCode, Member, Payment } from "@/types/domain";
 interface PaymentFormProps {
   readonly members: readonly Member[];
   readonly localCurrency: CurrencyCode;
-  readonly onAddPayment: (payment: Payment) => string | null;
+  readonly paymentToEdit?: Payment;
+  readonly onSavePayment: (payment: Payment) => string | null;
+  readonly onCancelEdit?: () => void;
 }
 
 export function PaymentForm({
   members,
   localCurrency,
-  onAddPayment,
+  paymentToEdit,
+  onSavePayment,
+  onCancelEdit,
 }: PaymentFormProps) {
-  const [payerId, setPayerId] = useState(members[0]?.id ?? "");
-  const [currency, setCurrency] = useState<CurrencyCode>(localCurrency);
-  const [amount, setAmount] = useState("");
-  const [description, setDescription] = useState("");
+  const isEditing = paymentToEdit !== undefined;
+  const inputIdPrefix = isEditing
+    ? `payment-edit-${paymentToEdit.id}`
+    : "payment-add";
+  const [payerId, setPayerId] = useState(
+    paymentToEdit?.payerId ?? members[0]?.id ?? "",
+  );
+  const [currency, setCurrency] = useState<CurrencyCode>(
+    paymentToEdit?.currency ?? localCurrency,
+  );
+  const [amount, setAmount] = useState(
+    paymentToEdit === undefined
+      ? ""
+      : formatMoneyInput(paymentToEdit.amountMinor, paymentToEdit.currency),
+  );
+  const [description, setDescription] = useState(
+    paymentToEdit?.description ?? "",
+  );
   const [excludedMemberIds, setExcludedMemberIds] = useState<readonly string[]>(
-    [],
+    paymentToEdit === undefined
+      ? []
+      : members
+          .filter(
+            (member) =>
+              !paymentToEdit.splitAmongMemberIds.includes(member.id),
+          )
+          .map((member) => member.id),
   );
   const [errors, setErrors] = useState<PaymentValidationErrors | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -39,8 +66,13 @@ export function PaymentForm({
   const effectivePayerId = members.some((member) => member.id === payerId)
     ? payerId
     : (members[0]?.id ?? "");
-  const paymentCurrencies: readonly CurrencyCode[] =
-    localCurrency === "JPY" ? ["JPY"] : [localCurrency, "JPY"];
+  const paymentCurrencies: readonly CurrencyCode[] = Array.from(
+    new Set<CurrencyCode>(
+      paymentToEdit === undefined
+        ? [localCurrency, "JPY"]
+        : [paymentToEdit.currency, localCurrency, "JPY"],
+    ),
+  );
 
   function clearMessages() {
     setErrors(null);
@@ -53,27 +85,38 @@ export function PaymentForm({
     setSubmitError(null);
     setSuccessMessage(null);
 
-    const result = createPayment(
-      {
-        payerId: effectivePayerId,
-        amount,
-        currency,
-        description,
-        splitAmongMemberIds: selectedMemberIds,
-      },
-      members,
-      localCurrency,
-    );
+    const input = {
+      payerId: effectivePayerId,
+      amount,
+      currency,
+      description,
+      splitAmongMemberIds: selectedMemberIds,
+    };
+    const result =
+      paymentToEdit === undefined
+        ? createPayment(input, members, localCurrency)
+        : createUpdatedPayment(
+            input,
+            members,
+            localCurrency,
+            paymentToEdit,
+          );
 
     if (!result.ok) {
       setErrors(result.errors);
       return;
     }
 
-    const saveError = onAddPayment(result.payment);
+    const saveError = onSavePayment(result.payment);
 
     if (saveError !== null) {
       setSubmitError(saveError);
+      return;
+    }
+
+    setErrors(null);
+
+    if (isEditing) {
       return;
     }
 
@@ -82,7 +125,6 @@ export function PaymentForm({
     setAmount("");
     setDescription("");
     setExcludedMemberIds([]);
-    setErrors(null);
     setSuccessMessage(`「${result.payment.description}」を追加しました。`);
   }
 
@@ -100,30 +142,38 @@ export function PaymentForm({
 
   return (
     <form
-      className="mt-6 rounded-2xl border border-amber-100 bg-amber-50/60 p-4 sm:p-5"
+      className={`rounded-2xl border p-4 sm:p-5 ${
+        isEditing
+          ? "border-sky-200 bg-white"
+          : "mt-6 border-amber-100 bg-amber-50/60"
+      }`}
       noValidate
       onSubmit={handleSubmit}
     >
-      <h3 className="font-bold text-slate-900">支払いを追加</h3>
+      <h3 className="font-bold text-slate-900">
+        {isEditing ? "支払いを編集" : "支払いを追加"}
+      </h3>
       <p className="mt-1 text-sm leading-6 text-slate-600">
-        誰が立て替え、誰が費用を負担するかを入力してください。
+        {isEditing
+          ? "変更後の内容で保存すると、精算結果も自動で計算し直します。"
+          : "誰が立て替え、誰が費用を負担するかを入力してください。"}
       </p>
 
       <div className="mt-5 grid gap-4 sm:grid-cols-3">
         <div>
           <label
-            htmlFor="payment-payer"
+            htmlFor={`${inputIdPrefix}-payer`}
             className="text-sm font-semibold text-slate-800"
           >
             支払った人
             <span className="ml-2 text-xs font-medium text-red-600">必須</span>
           </label>
           <select
-            id="payment-payer"
+            id={`${inputIdPrefix}-payer`}
             value={effectivePayerId}
             required
             aria-describedby={
-              errors?.payerId ? "payment-payer-error" : undefined
+              errors?.payerId ? `${inputIdPrefix}-payer-error` : undefined
             }
             aria-invalid={errors?.payerId !== null && errors !== null}
             className={`${inputClassName} ${
@@ -143,7 +193,10 @@ export function PaymentForm({
             ))}
           </select>
           {errors?.payerId && (
-            <p id="payment-payer-error" className="mt-2 text-sm text-red-700">
+            <p
+              id={`${inputIdPrefix}-payer-error`}
+              className="mt-2 text-sm text-red-700"
+            >
               {errors.payerId}
             </p>
           )}
@@ -151,17 +204,19 @@ export function PaymentForm({
 
         <div>
           <label
-            htmlFor="payment-currency"
+            htmlFor={`${inputIdPrefix}-currency`}
             className="text-sm font-semibold text-slate-800"
           >
             支払い通貨
             <span className="ml-2 text-xs font-medium text-red-600">必須</span>
           </label>
           <select
-            id="payment-currency"
+            id={`${inputIdPrefix}-currency`}
             value={currency}
             aria-describedby={
-              errors?.currency ? "payment-currency-error" : undefined
+              errors?.currency
+                ? `${inputIdPrefix}-currency-error`
+                : undefined
             }
             aria-invalid={Boolean(errors?.currency)}
             className={`${inputClassName} ${
@@ -182,7 +237,10 @@ export function PaymentForm({
             ))}
           </select>
           {errors?.currency && (
-            <p id="payment-currency-error" className="mt-2 text-sm text-red-700">
+            <p
+              id={`${inputIdPrefix}-currency-error`}
+              className="mt-2 text-sm text-red-700"
+            >
               {errors.currency}
             </p>
           )}
@@ -190,14 +248,14 @@ export function PaymentForm({
 
         <div>
           <label
-            htmlFor="payment-amount"
+            htmlFor={`${inputIdPrefix}-amount`}
             className="text-sm font-semibold text-slate-800"
           >
             金額（{currency}）
             <span className="ml-2 text-xs font-medium text-red-600">必須</span>
           </label>
           <input
-            id="payment-amount"
+            id={`${inputIdPrefix}-amount`}
             value={amount}
             required
             inputMode={
@@ -206,7 +264,7 @@ export function PaymentForm({
             min={getCurrencyInputStep(currency)}
             step={getCurrencyInputStep(currency)}
             aria-describedby={
-              errors?.amount ? "payment-amount-error" : undefined
+              errors?.amount ? `${inputIdPrefix}-amount-error` : undefined
             }
             aria-invalid={errors?.amount !== null && errors !== null}
             className={`${inputClassName} ${
@@ -224,7 +282,10 @@ export function PaymentForm({
             }}
           />
           {errors?.amount && (
-            <p id="payment-amount-error" className="mt-2 text-sm text-red-700">
+            <p
+              id={`${inputIdPrefix}-amount-error`}
+              className="mt-2 text-sm text-red-700"
+            >
               {errors.amount}
             </p>
           )}
@@ -233,18 +294,20 @@ export function PaymentForm({
 
       <div className="mt-4">
         <label
-          htmlFor="payment-description"
+          htmlFor={`${inputIdPrefix}-description`}
           className="text-sm font-semibold text-slate-800"
         >
           内容
           <span className="ml-2 text-xs font-medium text-red-600">必須</span>
         </label>
         <input
-          id="payment-description"
+          id={`${inputIdPrefix}-description`}
           value={description}
           required
           aria-describedby={
-            errors?.description ? "payment-description-error" : undefined
+            errors?.description
+              ? `${inputIdPrefix}-description-error`
+              : undefined
           }
           aria-invalid={errors?.description !== null && errors !== null}
           className={`${inputClassName} ${
@@ -261,7 +324,7 @@ export function PaymentForm({
         />
         {errors?.description && (
           <p
-            id="payment-description-error"
+            id={`${inputIdPrefix}-description-error`}
             className="mt-2 text-sm text-red-700"
           >
             {errors.description}
@@ -271,7 +334,9 @@ export function PaymentForm({
 
       <fieldset
         aria-describedby={
-          errors?.splitAmongMemberIds ? "payment-split-error" : undefined
+          errors?.splitAmongMemberIds
+            ? `${inputIdPrefix}-split-error`
+            : undefined
         }
         className="mt-5"
       >
@@ -318,7 +383,7 @@ export function PaymentForm({
         </div>
         {errors?.splitAmongMemberIds && (
           <p
-            id="payment-split-error"
+            id={`${inputIdPrefix}-split-error`}
             role="alert"
             className="mt-2 text-sm text-red-700"
           >
@@ -341,12 +406,23 @@ export function PaymentForm({
         </p>
       )}
 
-      <button
-        type="submit"
-        className="mt-5 flex min-h-12 w-full items-center justify-center rounded-xl bg-slate-950 px-5 py-3 text-base font-bold text-white shadow-lg shadow-slate-950/15 transition hover:bg-amber-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
-      >
-        この支払いを追加
-      </button>
+      <div className={`mt-5 grid gap-3 ${isEditing ? "sm:grid-cols-2" : ""}`}>
+        {isEditing && onCancelEdit !== undefined && (
+          <button
+            type="button"
+            className="flex min-h-12 w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 text-base font-bold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-700"
+            onClick={onCancelEdit}
+          >
+            キャンセル
+          </button>
+        )}
+        <button
+          type="submit"
+          className="flex min-h-12 w-full items-center justify-center rounded-xl bg-slate-950 px-5 py-3 text-base font-bold text-white shadow-lg shadow-slate-950/15 transition hover:bg-amber-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
+        >
+          {isEditing ? "変更を保存" : "この支払いを追加"}
+        </button>
+      </div>
     </form>
   );
 }

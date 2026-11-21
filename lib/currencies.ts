@@ -86,6 +86,27 @@ export function parseMoneyInput(
   }
 }
 
+/** 保存済みの最小通貨単位を、金額入力欄へ戻せる文字列に変換する。 */
+export function formatMoneyInput(
+  amountMinor: number,
+  currency: CurrencyCode,
+): string {
+  const fractionDigits = getCurrencyFractionDigits(currency);
+
+  if (fractionDigits === 0) {
+    return String(amountMinor);
+  }
+
+  const factor = 10 ** fractionDigits;
+  const majorPart = Math.floor(amountMinor / factor);
+  const fractionPart = String(amountMinor % factor).padStart(
+    fractionDigits,
+    "0",
+  );
+
+  return `${majorPart}.${fractionPart}`;
+}
+
 export function formatMoney(
   amountMinor: bigint | number,
   currency: CurrencyCode,
