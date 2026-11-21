@@ -51,8 +51,9 @@ export function PaymentList({
       />
 
       <div className="mt-8 border-t border-slate-200 pt-6">
+        <h3 className="text-sm font-bold text-slate-700">支払い履歴</h3>
         {payments.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-10 text-center">
+          <div className="mt-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-10 text-center">
             <div
               aria-hidden="true"
               className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm"
@@ -67,7 +68,7 @@ export function PaymentList({
             </p>
           </div>
         ) : (
-          <ul className="space-y-3">
+          <ul className="mt-3 space-y-3">
             {payments.map((payment) => (
               <li
                 key={payment.id}
