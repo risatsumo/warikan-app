@@ -5,6 +5,7 @@ import type {
   ExchangeRate,
   Member,
   Payment,
+  PaymentItem,
   Trip,
 } from "../types/domain";
 
@@ -33,7 +34,7 @@ export type SaveAppDataResult =
   | { readonly ok: false; readonly error: StorageError };
 
 export function createEmptyAppData(): AppData {
-  return { version: 4, trips: [] };
+  return { version: 5, trips: [] };
 }
 
 export function loadAppData(storage: StorageAdapter): LoadAppDataResult {
@@ -118,18 +119,25 @@ function parseAppData(value: unknown): AppData | null {
     return null;
   }
 
-  if (value.version === 4 && value.trips.every(isTrip)) {
+  if (value.version === 5 && value.trips.every(isTrip) && value.trips.every((trip) => trip.payments.every((payment) => Array.isArray(payment.items)))) {
     const appData = value as unknown as AppData;
 
     return hasUniqueStrings(appData.trips.map((trip) => trip.id))
-      ? { version: 4, trips: appData.trips.map((trip) => ({ ...trip, prioritizePayersForRounding: false })) }
+      ? { version: 5, trips: appData.trips }
+      : null;
+  }
+
+  if (value.version === 4 && value.trips.every(isTrip)) {
+    const trips = value.trips as unknown as Trip[];
+    return hasUniqueStrings(trips.map((trip) => trip.id))
+      ? { version: 5, trips: trips.map(migrateTripPayments) }
       : null;
   }
 
   if (value.version === 3 && value.trips.every(isVersion3Trip)) {
     const version3Trips = value.trips as (Omit<Trip, "prioritizePayersForRounding">)[];
     if (!hasUniqueStrings(version3Trips.map((trip) => trip.id))) return null;
-    return { version: 4, trips: version3Trips.map((trip) => ({ ...trip, prioritizePayersForRounding: false })) };
+    return { version: 5, trips: version3Trips.map((trip) => migrateTripPayments({ ...trip, prioritizePayersForRounding: false } as Trip)) };
   }
 
   if (value.version === 2 && value.trips.every(isVersion2Trip)) {
@@ -140,8 +148,8 @@ function parseAppData(value: unknown): AppData | null {
     }
 
     return {
-      version: 4,
-      trips: version2Trips.map((trip) => ({
+      version: 5,
+      trips: version2Trips.map((trip) => migrateTripPayments({
         id: trip.id,
         name: trip.name,
         localCurrency: trip.localCurrency,
@@ -161,7 +169,7 @@ function parseAppData(value: unknown): AppData | null {
         members: trip.members,
         payments: trip.payments,
         prioritizePayersForRounding: false,
-      })),
+      } as Trip)),
     };
   }
 
@@ -173,14 +181,14 @@ function parseAppData(value: unknown): AppData | null {
     }
 
     return {
-      version: 4,
-      trips: legacyTrips.map((trip) => ({
+      version: 5,
+      trips: legacyTrips.map((trip) => migrateTripPayments({
         ...trip,
         localCurrency: "JPY",
         settlementCurrency: "JPY",
         exchangeRates: [],
         prioritizePayersForRounding: false,
-      })),
+      } as Trip)),
     };
   }
 
@@ -188,11 +196,15 @@ function parseAppData(value: unknown): AppData | null {
 }
 
 function isAppData(value: unknown): value is AppData {
-  if (!isRecord(value) || value.version !== 4 || !Array.isArray(value.trips)) {
+  if (!isRecord(value) || value.version !== 5 || !Array.isArray(value.trips)) {
     return false;
   }
 
   if (!value.trips.every(isTrip)) {
+    return false;
+  }
+
+  if (!value.trips.every((trip) => trip.payments.every((payment) => Array.isArray(payment.items)))) {
     return false;
   }
 
@@ -283,7 +295,31 @@ function isPayment(
     return false;
   }
 
-  return hasUniqueStrings(value.splitAmongMemberIds);
+  if (!hasUniqueStrings(value.splitAmongMemberIds)) return false;
+  if (value.items === undefined) return true;
+  if (!Array.isArray(value.items) || value.items.length === 0 || !value.items.every((item) => isPaymentItem(item, memberIds))) return false;
+  const items = value.items as PaymentItem[];
+  return hasUniqueStrings(items.map((item) => item.id)) &&
+    items.reduce((total, item) => total + item.amountMinor, 0) === value.amountMinor;
+}
+
+function isPaymentItem(value: unknown, memberIds: ReadonlySet<string>): value is PaymentItem {
+  return isRecord(value) && isNonEmptyString(value.id) && isNonEmptyString(value.description) && typeof value.amountMinor === "number" && Number.isSafeInteger(value.amountMinor) && value.amountMinor > 0 && Array.isArray(value.splitAmongMemberIds) && value.splitAmongMemberIds.length > 0 && value.splitAmongMemberIds.every((id) => typeof id === "string" && memberIds.has(id)) && hasUniqueStrings(value.splitAmongMemberIds);
+}
+
+function migrateTripPayments(trip: Trip): Trip {
+  return {
+    ...trip,
+    payments: trip.payments.map((payment) => payment.items !== undefined ? payment : ({
+      ...payment,
+      items: [{
+        id: `${payment.id}-item-1`,
+        description: payment.description,
+        amountMinor: payment.amountMinor,
+        splitAmongMemberIds: payment.splitAmongMemberIds,
+      }],
+    })),
+  };
 }
 
 interface Version2ExchangeRate {

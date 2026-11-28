@@ -3,7 +3,7 @@ import { useState } from "react";
 import { formatMoney } from "@/lib/currencies";
 import type { CurrencyCode, Member, Payment } from "@/types/domain";
 
-import { PaymentForm } from "./payment-form";
+import { PaymentItemForm } from "./payment-item-form";
 
 interface PaymentListProps {
   readonly members: readonly Member[];
@@ -74,7 +74,7 @@ export function PaymentList({
         </span>
       </div>
 
-      <PaymentForm
+      <PaymentItemForm
         members={members}
         localCurrency={localCurrency}
         onSavePayment={handleAddPayment}
@@ -120,7 +120,7 @@ export function PaymentList({
                   }
                 >
                   {isEditing ? (
-                    <PaymentForm
+                    <PaymentItemForm
                       key={payment.id}
                       members={members}
                       localCurrency={localCurrency}
@@ -147,6 +147,14 @@ export function PaymentList({
                           .map((memberId) => memberNameById.get(memberId))
                           .join("、")}
                       </p>
+                      <ul className="mt-3 space-y-1 border-t border-slate-200 pt-3 text-sm text-slate-700">
+                        {(payment.items ?? [{ id: `${payment.id}-legacy`, description: payment.description, amountMinor: payment.amountMinor, splitAmongMemberIds: payment.splitAmongMemberIds }]).map((item) => (
+                          <li key={item.id} className="flex flex-wrap justify-between gap-x-3 gap-y-1">
+                            <span>{item.description} · {item.splitAmongMemberIds.map((memberId) => memberNameById.get(memberId)).join("、")}</span>
+                            <span className="font-semibold">{formatMoney(item.amountMinor, payment.currency)}</span>
+                          </li>
+                        ))}
+                      </ul>
                       <div className="mt-3 flex justify-end gap-1 border-t border-slate-200 pt-2">
                         <button
                           type="button"

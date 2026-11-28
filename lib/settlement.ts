@@ -130,23 +130,40 @@ export function calculateSettlement(
       convertedPayment,
     );
 
-    const paymentShare: Fraction = {
-      numerator: convertedPayment.numerator,
-      denominator:
-        convertedPayment.denominator *
-        BigInt(payment.splitAmongMemberIds.length),
-    };
+    const items = payment.items ?? [{
+      id: `${payment.id}-legacy-item`,
+      description: payment.description,
+      amountMinor: payment.amountMinor,
+      splitAmongMemberIds: payment.splitAmongMemberIds,
+    }];
 
-    payment.splitAmongMemberIds.forEach((memberId) => {
-      const currentBurden = burdenFractionByMemberId.get(memberId) ?? {
-        numerator: ZERO,
-        denominator: ONE,
-      };
-      burdenFractionByMemberId.set(
-        memberId,
-        addFractions(currentBurden, paymentShare),
+    for (const item of items) {
+      const convertedItem = convertPaymentAmount(
+        { ...payment, amountMinor: item.amountMinor },
+        settlementCurrency,
+        trip,
       );
-    });
+
+      if (convertedItem === null) {
+        return {
+          ok: false,
+          code: "missing-exchange-rate",
+          error: "為替レートの形式が正しくありません。旅行設定を確認してください。",
+        };
+      }
+
+      const itemShare: Fraction = {
+        numerator: convertedItem.numerator,
+        denominator: convertedItem.denominator * BigInt(item.splitAmongMemberIds.length),
+      };
+      item.splitAmongMemberIds.forEach((memberId) => {
+        const currentBurden = burdenFractionByMemberId.get(memberId) ?? {
+          numerator: ZERO,
+          denominator: ONE,
+        };
+        burdenFractionByMemberId.set(memberId, addFractions(currentBurden, itemShare));
+      });
+    }
   }
 
   const totalExpense = roundFractionHalfUp(totalExpenseFraction);

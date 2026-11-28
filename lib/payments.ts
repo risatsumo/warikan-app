@@ -8,6 +8,7 @@ import type {
   CurrencyCode,
   Member,
   Payment,
+  PaymentItem,
   Trip,
 } from "../types/domain";
 
@@ -17,6 +18,11 @@ export interface CreatePaymentInput {
   readonly currency: CurrencyCode;
   readonly description: string;
   readonly splitAmongMemberIds: readonly string[];
+  readonly items?: readonly {
+    readonly description: string;
+    readonly amount: string;
+    readonly splitAmongMemberIds: readonly string[];
+  }[];
 }
 
 export interface PaymentValidationErrors {
@@ -25,6 +31,7 @@ export interface PaymentValidationErrors {
   readonly currency: string | null;
   readonly description: string | null;
   readonly splitAmongMemberIds: string | null;
+  readonly items?: string | null;
 }
 
 export type CreatePaymentResult =
@@ -96,6 +103,39 @@ function createPaymentWithAllowedCurrencies(
     (memberId) => !memberIds.has(memberId),
   );
 
+  let itemError: string | null = null;
+  const itemized = input.items?.map((item) => {
+    const itemAmount = isAllowedCurrency
+      ? parseMoneyInput(item.amount, input.currency)
+      : null;
+    const itemMemberIds = new Set(item.splitAmongMemberIds);
+    const itemHasInvalidMembers =
+      item.splitAmongMemberIds.length === 0 ||
+      itemMemberIds.size !== item.splitAmongMemberIds.length ||
+      item.splitAmongMemberIds.some((memberId) => !memberIds.has(memberId));
+    if (
+      item.description.trim() === "" ||
+      itemAmount === null ||
+      itemHasInvalidMembers
+    ) return null;
+    return {
+      description: item.description.trim(),
+      amountMinor: itemAmount,
+      splitAmongMemberIds: members
+        .filter((member) => itemMemberIds.has(member.id))
+        .map((member) => member.id),
+    };
+  });
+  const hasValidItems = itemized !== undefined && itemized.length > 0 && itemized.every((item) => item !== null);
+  const itemTotal = hasValidItems
+    ? itemized.reduce((total, item) => total + (item?.amountMinor ?? 0), 0)
+    : null;
+  if (input.items !== undefined && !hasValidItems) {
+    itemError = "品目名・金額・負担する人を確認してください。";
+  }
+  if (itemTotal !== null && (!Number.isSafeInteger(itemTotal) || itemTotal < 1)) {
+    itemError = "品目の合計金額が上限を超えています。";
+  }
   const errors: PaymentValidationErrors = {
     payerId: memberIds.has(input.payerId)
       ? null
@@ -117,26 +157,41 @@ function createPaymentWithAllowedCurrencies(
         : hasDuplicateSplitMembers || hasUnknownSplitMember
           ? "費用を負担する人を正しく選択してください。"
           : null,
+    items: itemError,
   };
   const hasErrors = Object.values(errors).some((error) => error !== null);
 
-  if (hasErrors || amountMinor === null) {
+  if (hasErrors || (itemTotal === null && amountMinor === null)) {
     return { ok: false, errors };
   }
 
+  const resolvedPaymentId = typeof paymentId === "string" ? paymentId : paymentId();
   const selectedMemberIds = new Set(input.splitAmongMemberIds);
+  const items: readonly PaymentItem[] = hasValidItems
+    ? itemized.map((item, index) => ({
+        id: `${resolvedPaymentId}-item-${index + 1}`,
+        ...item!,
+      }))
+    : [{
+        id: `${resolvedPaymentId}-item-1`,
+        description: input.description.trim(),
+        amountMinor: amountMinor!,
+        splitAmongMemberIds: members
+          .filter((member) => selectedMemberIds.has(member.id))
+          .map((member) => member.id),
+      }];
+  const itemMembers = new Set(items.flatMap((item) => item.splitAmongMemberIds));
 
   return {
     ok: true,
     payment: {
-      id: typeof paymentId === "string" ? paymentId : paymentId(),
+      id: resolvedPaymentId,
       payerId: input.payerId,
-      amountMinor,
+      amountMinor: items.reduce((total, item) => total + item.amountMinor, 0),
       currency: input.currency,
       description: input.description.trim(),
-      splitAmongMemberIds: members
-        .filter((member) => selectedMemberIds.has(member.id))
-        .map((member) => member.id),
+      splitAmongMemberIds: members.filter((member) => itemMembers.has(member.id)).map((member) => member.id),
+      items,
     },
   };
 }
